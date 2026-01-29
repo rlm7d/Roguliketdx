@@ -1,0 +1,685 @@
+(HTML Roguelike Tower Defense)
+0) Role, process, and non-negotiables
+
+You are a senior game engineer shipping a single-player roguelike tower defense game that runs in a browser using HTML/CSS/JS.
+
+Workflow requirement (very important):
+
+Implement in small pull requests (PRs).
+
+Each PR must be buildable, playable, and not break previously completed features.
+
+For each PR: include
+
+PR Title
+
+Summary
+
+User-visible changes
+
+Files changed
+
+Acceptance criteria
+
+Manual test steps
+
+Any known limitations + next PR dependencies
+
+Copyright/IP guardrails:
+
+The vibe should be classic high fantasy (muddy battlefields, ruined stone, grim forests, war banners, crude raiders, etc.) with orcs/goblins as generic fantasy creatures, but:
+
+Do NOT use any names, places, or lore from Lord of the Rings (no “Mordor”, “Sauron”, “Gondor”, “Shire”, “Nazgûl”, etc.).
+
+Do NOT copy any distinct characters, factions, maps, symbols, poems, or story beats.
+
+Use original faction names and art motifs.
+
+Use original UI copy and original iconography (simple shapes, SVG, procedural art, or placeholder sprites you draw yourself).
+
+1) High-level game pitch
+
+Create “Ashwood Bastion” (working title): a roguelike tower defense where the player defends a woodland pass and ruined fortifications from waves of raiders.
+
+Core loop:
+
+Start a run with a starter kit (basic towers + starting gold).
+
+Fight a battle (one map, multiple waves).
+
+Between waves and/or after battle, pick roguelike upgrades (relics, tower mods, spells, economy perks).
+
+Choose the next node on a run map (branching choices: battle / elite / merchant / shrine / event / boss).
+
+Continue until you win the final boss or your bastion falls.
+
+Award meta-currency to unlock new starting options (optional but recommended) stored via localStorage.
+
+2) Platform and technical constraints
+
+Target: Desktop + mobile browsers, runs offline after load.
+
+Tech stack:
+
+Vanilla JS (ES6 modules ok)
+
+HTML + CSS
+
+Rendering: prefer Canvas 2D for game world, and HTML/CSS for UI overlays.
+
+No heavy frameworks required.
+
+No external network calls at runtime.
+
+Optional: tiny local dev server instructions, but game must work by just opening index.html too (where possible).
+
+Performance requirements:
+
+Stable 60fps target on modern devices.
+
+Avoid per-frame allocations; use object pooling for projectiles/particles if needed.
+
+Deterministic update step: fixed timestep (e.g., 60hz update with accumulator) and render interpolation optional.
+
+Save system:
+
+localStorage for:
+
+settings
+
+run-in-progress autosave (optional)
+
+meta progression/unlocks
+
+Accessibility:
+
+Colorblind-friendly palette options or at least clear shape language.
+
+UI scale slider.
+
+Toggle for reduced motion.
+
+Tap-friendly hit targets on mobile.
+
+3) Art direction (LOTR-like vibe without infringement)
+
+Mood keywords: grim woodland, stormy sky, torchlight, mossy ruins, iron and leather, crude warpaint, bone talismans, smoky camps.
+
+Factions (original):
+
+Player: Wardens of Emberwatch (symbol: stylized ember/leaf)
+
+Enemies: Bogclan Raiders (goblins), Ironmaw Bruisers (orc-like), Ash-Worg Packs (beasts), Hexbone Shamans (casters)
+
+Visual style approach:
+
+Use readable silhouettes and strong contrast.
+
+Towers and enemies can be simple shapes with small details:
+
+Goblins: short, fast, hunched, large ears/helmets
+
+Orc-like: tall, heavy, big shoulders, slow
+
+Shamans: staff, glowing rune orb
+
+Use particles and simple effects: muzzle flash, sparks, frost shards, poison puffs.
+
+UI style: parchment panels + dark metal borders; hover glows; rune icons.
+
+Audio:
+
+Minimal fantasy SFX generated from simple waveforms or bundled small audio files (optional).
+
+Provide toggles and volume sliders.
+
+4) Gameplay specification (tower defense fundamentals)
+Map + pathing
+
+Use a grid-based map (e.g., 16x10 or 20x12) scaled to screen.
+
+The enemy path is a set of waypoints or a path computed from a tile map.
+
+Enemies spawn at Spawn, march to Gate. If they reach Gate, they deal damage to player base.
+
+Player places towers on buildable tiles; cannot block the path completely (enforce by validation: path must remain valid).
+
+Waves
+
+Each battle contains multiple waves.
+
+Wave composition: small groups + trickles; occasional miniboss; late wave elites.
+
+Provide a wave preview panel showing enemy types and counts.
+
+After each wave: short build phase timer + optional “pick 1 of 3 upgrades” choice.
+
+Economy
+
+Start with gold.
+
+Earn gold per kill and/or end-of-wave bonus.
+
+Towers cost gold, upgrades cost gold.
+
+Optional: interest mechanic or salvage refunds.
+
+Towers (initial set)
+
+Implement at least 6 tower archetypes with clear roles and upgrade paths:
+
+Arrow Watch (basic DPS)
+
+Fast single-target
+
+Upgrade paths: Crit / Range / Multi-shot
+
+Frost Totem (slow/control)
+
+Applies slow stacks; small AoE burst every few seconds
+
+Upgrades: stronger slow, freeze chance, larger radius
+
+Bombard (splash)
+
+Slow rate, AoE explosion
+
+Upgrades: larger blast, shrapnel, armor shred
+
+Thorn Grove (damage-over-time zone)
+
+Creates bramble patch near path (or around tower) that poisons
+
+Upgrades: stronger DOT, longer duration, spreading
+
+Hex Spire (chain/curse)
+
+Chains lightning or applies curse that increases damage taken
+
+Upgrades: chain count, curse strength, mana siphon
+
+Sanctuary Brazier (support)
+
+Buff aura: attack speed or damage; or heals base slightly
+
+Upgrades: aura size, buff strength, adds shield proc
+
+Enemies (initial set)
+
+Implement at least 8 enemies with distinct behavior:
+
+Bog Sneak (fast, low HP)
+
+Bog Slingers (ranged; stops to throw at towers/base)
+
+Ironmaw Brute (slow tank)
+
+Ironmaw Runner (medium HP, fast)
+
+Ash Worg (leaps/short dash)
+
+Hexbone Shaman (casts shield on allies or heals)
+
+Banner Captain (buffs nearby enemies with speed)
+
+Elite Crusher (mini-boss; high armor; stun on hit to base)
+
+Enemy stats must scale per act and per wave.
+
+Player “spells” (roguelike feel)
+
+Add 3–5 active abilities on cooldown (use mana or charges):
+
+Volley: instant AoE arrows in targeted circle
+
+Rune Snare: root enemies briefly
+
+Ember Surge: buff towers’ attack speed for 6s
+
+Stonewall: temporary barricade that doesn’t fully block path (forces detour via alternate lane if designed) OR acts as damage sponge placed adjacent to path
+
+Coin Charm: doubles bounty for 5s
+
+5) Roguelike systems (the “run”)
+Run map (node-based)
+
+Build a simple node graph with ~12–15 nodes:
+
+Node types:
+
+Battle
+
+Elite Battle
+
+Merchant
+
+Shrine (pick a blessing with a downside)
+
+Event (text + choice, simple)
+
+Boss
+
+Player chooses between 2–3 branches each step.
+
+Upgrades model (pick one)
+
+Use cards or relics:
+
+Relics: passive run-long modifiers
+
+Tower Augments: modify specific tower types
+
+Spell Mods: change spells (cooldown, effect)
+
+Economy Perks: interest, extra gold, discounts
+
+Selection rules:
+
+After each battle: choose 1 of 3.
+
+After elite: choose 1 of 4 with better rarity.
+
+Rarity tiers: Common / Rare / Epic.
+
+Ensure the pool prevents duplicates where appropriate and supports stacking if designed.
+
+Example upgrades (original, non-LOTR):
+
+Common: “Sharpened Fletching” (+8% Arrow Watch damage)
+
+Common: “Cold Iron Rings” (+10% slow strength)
+
+Rare: “Hex Resonance” (Hex Spire chains +1)
+
+Rare: “Bramble Feast” (poison kills grant +1 gold)
+
+Epic: “Ember Crown” (every 10th shot explodes for AoE)
+
+Meta progression (optional but recommended)
+
+Earn Ember Sigils after a run.
+
+Spend in a small meta tree:
+
++starting gold
+
+unlock a new starter tower
+
+unlock a new spell
+
+reroll tokens for upgrade selection
+
+6) UX / UI requirements
+Layout
+
+Main canvas: battlefield
+
+Top bar: base HP, gold, wave, act node, pause
+
+Right side (or bottom on mobile): tower shop buttons with costs
+
+Upgrade panel: appears between waves/battles
+
+Run map screen: node selection
+
+Settings: sound, music, ui scale, reduce motion
+
+Controls
+
+Mouse: click tower icon → click tile to place → confirm/rotate
+
+Mobile: tap-to-place with a clear ghost preview
+
+Tower inspection: click placed tower to open panel:
+
+stats
+
+upgrade buttons (2–3 upgrades)
+
+sell button
+
+target priority dropdown (First/Strong/Last)
+
+Readability
+
+Clear telegraphs for AoE
+
+Health bars on enemies
+
+Floating combat text optional (can be toggled)
+
+7) Code architecture requirements
+Repo structure (recommended)
+
+index.html
+
+styles.css
+
+src/
+
+main.js (bootstrap)
+
+game/engine.js (loop, timestep)
+
+game/state.js (state machine: menu, map, battle, rewards)
+
+game/render.js (canvas renderer)
+
+game/input.js
+
+game/audio.js
+
+game/save.js
+
+data/ (towers, enemies, upgrades, node templates)
+
+systems/ (pathing, targeting, projectiles, status effects, economy)
+
+ui/ (panels, buttons, layout helpers)
+
+Design principles
+
+Use a state machine:
+
+MainMenuState
+
+RunMapState
+
+BattleState
+
+RewardState
+
+GameOverState
+
+Use data-driven definitions for towers/enemies/upgrades (JSON-like objects).
+
+Separate update and render.
+
+Keep deterministic and avoid hidden globals.
+
+Debug tools
+
+Developer overlay toggled by key (e.g., ~):
+
+spawn enemy
+
+add gold
+
+skip wave
+
+show FPS
+
+toggle hitboxes and path visualization
+
+8) Pull Request Plan (Codex must follow this)
+
+Implement the game in the following PR sequence. Keep each PR tight and shippable.
+
+PR 1 — Project scaffold + run locally
+
+Goal: A working page with canvas + UI shell.
+
+Add base HTML structure, canvas sizing, responsive layout
+
+Add minimal CSS theme (parchment panels + dark borders)
+
+Add JS entry point, basic app loop (no gameplay yet)
+
+Add Settings modal (sound/music toggles stored in localStorage)
+Acceptance criteria:
+
+Opening index.html shows a menu and a “Start Run” button (placeholder)
+
+Canvas resizes correctly on desktop and mobile
+
+Settings persist after refresh
+
+PR 2 — Game loop + state machine
+
+Goal: Engine foundation.
+
+Fixed timestep loop, pause, resume
+
+State machine transitions:
+
+Menu → RunMap (placeholder) → Battle (placeholder) → GameOver (placeholder)
+
+Basic HUD top bar with dummy values
+Acceptance criteria:
+
+Start Run enters RunMap screen
+
+Can enter Battle screen and return
+
+Pause works; FPS stable; no console errors
+
+PR 3 — Tile map + path rendering
+
+Goal: Show a battlefield grid and a valid path.
+
+Implement grid coordinate system
+
+Define a sample map with buildable vs path tiles
+
+Render grid, path line, spawn + gate markers
+
+Add simple path-following waypoints list
+Acceptance criteria:
+
+Battle screen displays map and path clearly
+
+Path visual debug toggle
+
+No towers yet; just environment
+
+PR 4 — Enemy entities + wave spawner
+
+Goal: Enemies move from spawn to gate and damage base.
+
+Enemy base class, stats, movement along waypoints
+
+Spawn system: define wave data; spawn cadence
+
+Base HP decreases when enemies reach gate; game over condition
+
+Simple enemy sprites (shapes) + health bars
+Acceptance criteria:
+
+“Start Wave” spawns enemies that walk the path
+
+Base HP decreases on leaks; ends run at 0
+
+Wave completes when all enemies dead/leaked
+
+PR 5 — Tower placement + basic projectile combat
+
+Goal: Place Arrow Watch tower; it shoots and kills.
+
+Tower placement system with ghost preview and validation
+
+Targeting (First by default)
+
+Projectiles, collision/hit, damage
+
+Gold economy: start gold, tower cost, bounty on kill
+Acceptance criteria:
+
+Player can place Arrow Watch on buildable tiles
+
+Tower shoots enemies in range and reduces HP
+
+Gold updates correctly; cannot place if insufficient gold
+
+PR 6 — Additional towers + status effects framework
+
+Goal: Add Frost Totem + Bombard; introduce slow and splash.
+
+Status effect system: slow, DOT framework (even if DOT tower later)
+
+AoE damage and radius rendering preview
+
+Upgrade UI stub per tower (button placeholders)
+Acceptance criteria:
+
+Frost slow visibly reduces enemy speed
+
+Bombard deals AoE damage
+
+Tower inspect panel opens and shows stats
+
+PR 7 — Full wave flow + build phase + speed controls
+
+Goal: Make battles feel like real TD.
+
+Between-wave build phase timer (or “Next Wave” button)
+
+1x / 2x speed toggle
+
+Wave preview panel
+
+End-of-battle victory screen → reward selection (placeholder)
+Acceptance criteria:
+
+Battle has multiple waves and pacing
+
+Speed toggle affects simulation safely
+
+Victory transitions to Reward screen
+
+PR 8 — Roguelike reward system (cards/relics)
+
+Goal: Implement “choose 1 of 3” upgrades after battle/wave.
+
+Upgrade pool with rarity weights
+
+Apply upgrades to run modifiers/tower stats
+
+Reroll token (optional)
+Acceptance criteria:
+
+Reward screen shows 3 distinct choices with tooltips
+
+Choosing one changes stats in a noticeable way
+
+Rarity appears and influences power
+
+PR 9 — Run map (node graph) + node effects
+
+Goal: A real roguelike run structure.
+
+Generate node graph with branches and node types
+
+Node selection leads to battle/merchant/shrine/event
+
+Merchant: spend gold to buy an upgrade or tower unlock for run
+
+Shrine: blessing with downside (simple stat trade)
+Acceptance criteria:
+
+Player can navigate 10+ nodes in a run
+
+Node types do different things
+
+Boss node exists at end
+
+PR 10 — Expand content: enemy roster + tower roster
+
+Goal: Variety and strategy.
+
+Add remaining towers: Thorn Grove, Hex Spire, Sanctuary Brazier
+
+Add enemy types: Slingers, Shaman, Banner Captain, Elite Crusher
+
+Implement at least one special behavior per enemy type
+Acceptance criteria:
+
+Content is playable and differentiated
+
+No one tower trivializes everything by default
+
+PR 11 — Boss battle + win condition
+
+Goal: Endgame with a distinctive boss.
+
+Boss with phases (HP thresholds)
+
+Phase mechanics examples:
+
+summons adds
+
+temporary shield
+
+enrages (speed + armor)
+
+Victory screen and run summary
+Acceptance criteria:
+
+Boss fight feels meaningfully different
+
+Clear win and loss outcomes + summary
+
+PR 12 — Meta progression + save/load
+
+Goal: Long-term replayability.
+
+Ember Sigils currency awarded by run performance
+
+Meta unlock screen from main menu
+
+Save meta + settings + (optional) run-in-progress autosave
+Acceptance criteria:
+
+Meta unlock persists across refresh
+
+Unlocks affect future runs (starting gold, starter towers, etc.)
+
+PR 13 — Polish, accessibility, QA pass
+
+Goal: Make it feel finished.
+
+Sound effects + optional music
+
+Screen shake toggle, reduced motion
+
+UI scale slider
+
+Mobile usability pass (tap targets, bottom dock)
+
+Balance adjustments and bug fixes
+Acceptance criteria:
+
+No major UX pain on mobile
+
+Settings work and persist
+
+No console errors; stable performance
+
+9) Balancing targets (so the AI tunes numbers sanely)
+
+Early waves: player can win with 2–4 basic towers
+
+Mid-run: synergy matters; upgrades noticeably shape builds
+
+Late-run: elites punish single-damage-type strategies
+
+Boss requires either strong DPS + control or clever upgrade synergy
+
+Avoid infinite scaling; cap certain stacking bonuses (e.g., soft caps)
+
+10) Definition of “done”
+
+The game is considered complete when:
+
+A full run from start to boss is playable and winnable
+
+Content variety exists (6 towers, 8 enemies, 25+ upgrades)
+
+Run map choices matter
+
+Mobile is playable
+
+Save/settings function
+
+No copyrighted LOTR content is included
+
+If you want, I can also generate a second prompt that tells Codex exactly how to write each PR description and commit messages (so it behaves like a real repo contributor), but the above is already ready to paste in and run.
