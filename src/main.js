@@ -39,6 +39,28 @@ const TOWER_DATA = {
     damage: 12,
     projectileSpeed: 6,
   },
+  frost: {
+    name: "Frost Totem",
+    cost: 55,
+    range: 2.3,
+    fireRate: 1.2,
+    damage: 6,
+    projectileSpeed: 5,
+    splashRadius: 1.1,
+    slow: {
+      factor: 0.65,
+      duration: 2.4,
+    },
+  },
+  bombard: {
+    name: "Bombard",
+    cost: 70,
+    range: 2.8,
+    fireRate: 1.6,
+    damage: 22,
+    projectileSpeed: 4,
+    splashRadius: 1.4,
+  },
 };
 const PATH_TILE_SET = new Set(
   MAP_CONFIG.path.map((point) => `${point.x},${point.y}`)
@@ -77,6 +99,8 @@ const restartButton = document.querySelector("#restartButton");
 const startWaveButton = document.querySelector("#startWaveButton");
 const waveStatus = document.querySelector("#waveStatus");
 const arrowTowerButton = document.querySelector("#arrowTowerButton");
+const frostTowerButton = document.querySelector("#frostTowerButton");
+const bombardTowerButton = document.querySelector("#bombardTowerButton");
 
 const FIXED_STEP = 1000 / 60;
 
@@ -326,13 +350,16 @@ function spawnEnemy(waveConfig) {
     damage: waveConfig.damage,
     segmentIndex: 0,
     segmentProgress: 0,
+    statusEffects: [],
   });
 }
 
 function updateEnemies(dtSeconds) {
   const remainingEnemies = [];
   for (const enemy of battleState.enemies) {
-    let moveRemaining = enemy.speed * dtSeconds;
+    updateEnemyStatusEffects(enemy, dtSeconds);
+    const currentSpeed = enemy.speed * getSpeedModifier(enemy);
+    let moveRemaining = currentSpeed * dtSeconds;
     while (moveRemaining > 0) {
       const current = MAP_CONFIG.path[enemy.segmentIndex];
       const next = MAP_CONFIG.path[enemy.segmentIndex + 1];
@@ -358,6 +385,21 @@ function updateEnemies(dtSeconds) {
     }
   }
   battleState.enemies = remainingEnemies;
+}
+
+function updateEnemyStatusEffects(enemy, dtSeconds) {
+  enemy.statusEffects = enemy.statusEffects
+    .map((effect) => ({ ...effect, remaining: effect.remaining - dtSeconds }))
+    .filter((effect) => effect.remaining > 0);
+}
+
+function getSpeedModifier(enemy) {
+  return enemy.statusEffects.reduce((modifier, effect) => {
+    if (effect.type === "slow") {
+      return Math.min(modifier, effect.factor);
+    }
+    return modifier;
+  }, 1);
 }
 
 function updateWaveSpawner(dtSeconds) {
@@ -403,9 +445,13 @@ function updateWaveUI() {
 function updateTowerUI() {
   if (currentState !== GameState.BATTLE) {
     arrowTowerButton.disabled = true;
+    frostTowerButton.disabled = true;
+    bombardTowerButton.disabled = true;
     return;
   }
   arrowTowerButton.disabled = !canAffordTower("arrow");
+  frostTowerButton.disabled = !canAffordTower("frost");
+  bombardTowerButton.disabled = !canAffordTower("bombard");
 }
 
 function getTowerCost(type) {
@@ -515,7 +561,8 @@ function renderBattleScene(time) {
   battleState.enemies.forEach((enemy) => {
     const worldPos = getEnemyWorldPosition(enemy);
     const radius = layout.tileSize * 0.25;
-    ctx.fillStyle = "rgba(120, 180, 110, 0.9)";
+    const slowed = enemy.statusEffects.some((effect) => effect.type === "slow");
+    ctx.fillStyle = slowed ? "rgba(120, 170, 220, 0.9)" : "rgba(120, 180, 110, 0.9)";
     ctx.beginPath();
     ctx.arc(worldPos.x, worldPos.y, radius, 0, Math.PI * 2);
     ctx.fill();
@@ -647,6 +694,8 @@ function updateTowers(dtSeconds) {
       target,
       speed: data.projectileSpeed,
       damage: data.damage,
+      splashRadius: data.splashRadius ?? 0,
+      slow: data.slow ?? null,
     });
     tower.cooldown = data.fireRate;
   });
@@ -663,14 +712,7 @@ function updateProjectiles(dtSeconds) {
     const dy = targetPos.y - projectile.y;
     const distance = Math.hypot(dx, dy);
     if (distance < projectile.speed * dtSeconds) {
-      projectile.target.hp -= projectile.damage;
-      if (projectile.target.hp <= 0) {
-        battleState.gold += projectile.target.bounty;
-        battleState.enemies = battleState.enemies.filter(
-          (enemy) => enemy !== projectile.target
-        );
-        updateTowerUI();
-      }
+      applyProjectileHit(projectile);
       return;
     }
     const vx = (dx / distance) * projectile.speed;
@@ -680,6 +722,47 @@ function updateProjectiles(dtSeconds) {
     remaining.push(projectile);
   });
   battleState.projectiles = remaining;
+}
+
+function applyProjectileHit(projectile) {
+  const targets = projectile.splashRadius
+    ? getEnemiesInRadius(projectile.target, projectile.splashRadius)
+    : [projectile.target];
+  targets.forEach((enemy) => {
+    enemy.hp -= projectile.damage;
+    if (projectile.slow) {
+      applyStatusEffect(enemy, {
+        type: "slow",
+        factor: projectile.slow.factor,
+        remaining: projectile.slow.duration,
+      });
+    }
+    if (enemy.hp <= 0) {
+      battleState.gold += enemy.bounty;
+    }
+  });
+  battleState.enemies = battleState.enemies.filter((enemy) => enemy.hp > 0);
+  updateTowerUI();
+}
+
+function getEnemiesInRadius(centerEnemy, radiusTiles) {
+  const layout = getMapLayout();
+  const center = getEnemyWorldPosition(centerEnemy);
+  const radius = radiusTiles * layout.tileSize;
+  return battleState.enemies.filter((enemy) => {
+    const pos = getEnemyWorldPosition(enemy);
+    return Math.hypot(pos.x - center.x, pos.y - center.y) <= radius;
+  });
+}
+
+function applyStatusEffect(enemy, effect) {
+  const existing = enemy.statusEffects.find((item) => item.type === effect.type);
+  if (existing) {
+    existing.remaining = Math.max(existing.remaining, effect.remaining);
+    existing.factor = Math.min(existing.factor, effect.factor);
+  } else {
+    enemy.statusEffects.push(effect);
+  }
 }
 
 function findTargetForTower(tower, range) {
@@ -767,6 +850,20 @@ function bindControls() {
       return;
     }
     placementMode = "arrow";
+  });
+
+  frostTowerButton.addEventListener("click", () => {
+    if (currentState !== GameState.BATTLE) {
+      return;
+    }
+    placementMode = "frost";
+  });
+
+  bombardTowerButton.addEventListener("click", () => {
+    if (currentState !== GameState.BATTLE) {
+      return;
+    }
+    placementMode = "bombard";
   });
 
   canvas.addEventListener("pointermove", (event) => {

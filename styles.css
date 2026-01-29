@@ -164,6 +164,11 @@ body {
   font-size: 1rem;
 }
 
+.tower-shop__grid {
+  display: grid;
+  gap: 8px;
+}
+
 .stage {
   position: relative;
   display: grid;
