@@ -42,8 +42,15 @@
         <div id="runMapScreen" class="screen">
           <h2>Run Map</h2>
           <p class="muted">Choose the next node on the Ashwood trail.</p>
+          <div class="run-map__legend">
+            <span class="run-map__chip">Battle</span>
+            <span class="run-map__chip">Elite</span>
+            <span class="run-map__chip">Merchant</span>
+            <span class="run-map__chip">Shrine</span>
+            <span class="run-map__chip">Event</span>
+            <span class="run-map__chip">Boss</span>
+          </div>
           <div class="screen__actions">
-            <button id="enterBattleButton" class="button button--ember" type="button">Enter Battle</button>
             <button id="returnToMenuButton" class="button button--ghost" type="button">Return to Menu</button>
           </div>
         </div>
@@ -72,6 +79,9 @@
               </button>
               <button id="bombardTowerButton" class="button button--metal" type="button">
                 Bombard (70g)
+              </button>
+              <button id="thornTowerButton" class="button button--metal" type="button">
+                Thorn Grove (60g)
               </button>
             </div>
           </div>
@@ -126,8 +136,9 @@
           </div>
         </div>
         <div id="runMapStage" class="run-map panel">
-          <h3>Run Map Placeholder</h3>
-          <p class="muted">Node graph incoming. Choose a path through Ashwood.</p>
+          <h3>Ashwood Trail</h3>
+          <p class="muted">Select a node to advance. Battles lead to rewards.</p>
+          <div id="runMapGrid" class="run-map__grid"></div>
         </div>
       </section>
     </main>
