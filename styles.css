@@ -223,6 +223,7 @@ body {
   text-align: left;
 }
 
+
 .stage {
   position: relative;
   display: grid;
@@ -402,3 +403,4 @@ body {
     display: none;
   }
 }
+
