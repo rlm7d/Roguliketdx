@@ -62,7 +62,84 @@ const TOWER_DATA = {
     projectileSpeed: 4,
     splashRadius: 1.4,
   },
+  thorn: {
+    name: "Thorn Grove",
+    cost: 60,
+    range: 2.2,
+    fireRate: 1.1,
+    damage: 4,
+    projectileSpeed: 5,
+    dot: {
+      damagePerSecond: 4,
+      duration: 3,
+    },
+  },
 };
+const REWARD_POOL = [
+  {
+    id: "sharpened-fletching",
+    name: "Sharpened Fletching",
+    description: "Arrow Watch damage +8%.",
+    rarity: "Common",
+    apply(modifiers) {
+      modifiers.towerDamage.arrow *= 1.08;
+    },
+  },
+  {
+    id: "cold-iron-rings",
+    name: "Cold Iron Rings",
+    description: "Frost Totem slow strength +10%.",
+    rarity: "Common",
+    apply(modifiers) {
+      modifiers.slowFactor *= 1.1;
+    },
+  },
+  {
+    id: "ember-reserves",
+    name: "Ember Reserves",
+    description: "Gain 20 gold before the next battle.",
+    rarity: "Common",
+    apply(modifiers, state) {
+      state.gold += 20;
+    },
+  },
+  {
+    id: "long-watch",
+    name: "Long Watch",
+    description: "Tower range +10%.",
+    rarity: "Rare",
+    apply(modifiers) {
+      modifiers.range *= 1.1;
+    },
+  },
+  {
+    id: "battlefield-drills",
+    name: "Battlefield Drills",
+    description: "Arrow Watch fires 10% faster.",
+    rarity: "Rare",
+    apply(modifiers) {
+      modifiers.attackSpeed.arrow *= 1.1;
+    },
+  },
+  {
+    id: "ruinbreaker-rounds",
+    name: "Ruinbreaker Rounds",
+    description: "Bombard damage +15%.",
+    rarity: "Epic",
+    apply(modifiers) {
+      modifiers.towerDamage.bombard *= 1.15;
+    },
+  },
+];
+const RUN_MAP_BLUEPRINT = [
+  ["camp"],
+  ["battle", "event"],
+  ["battle", "merchant"],
+  ["elite", "shrine", "battle"],
+  ["battle", "event"],
+  ["merchant", "battle"],
+  ["boss"],
+];
 const PATH_TILE_SET = new Set(
   MAP_CONFIG.path.map((point) => `${point.x},${point.y}`)
 );
@@ -93,7 +170,6 @@ const screens = {
   [GameState.GAME_OVER]: document.querySelector("#gameOverScreen"),
 };
 
-const enterBattleButton = document.querySelector("#enterBattleButton");
 const returnToMenuButton = document.querySelector("#returnToMenuButton");
 const backToMapButton = document.querySelector("#backToMapButton");
 const endRunButton = document.querySelector("#endRunButton");
@@ -103,10 +179,13 @@ const waveStatus = document.querySelector("#waveStatus");
 const arrowTowerButton = document.querySelector("#arrowTowerButton");
 const frostTowerButton = document.querySelector("#frostTowerButton");
 const bombardTowerButton = document.querySelector("#bombardTowerButton");
+const thornTowerButton = document.querySelector("#thornTowerButton");
 const speedNormalButton = document.querySelector("#speedNormalButton");
 const speedFastButton = document.querySelector("#speedFastButton");
 const wavePreviewList = document.querySelector("#wavePreviewList");
 const continueRunButton = document.querySelector("#continueRunButton");
+const rewardGrid = document.querySelector("#rewardGrid");
+const runMapGrid = document.querySelector("#runMapGrid");
 
 const FIXED_STEP = 1000 / 60;
 const BUILD_PHASE_DURATION = 6;
@@ -121,6 +200,7 @@ let simulationSpeed = 1;
 let demoPulse = 0;
 let showPathDebug = true;
 let battleState = createBattleState();
+let runState = createRunState();
 let placementMode = null;
 let hoverTile = null;
 
@@ -191,6 +271,37 @@ function createBattleState() {
     spawnTimer: 0,
     spawnIndex: 0,
     buildPhaseRemaining: 0,
+  };
+}
+
+function createRunState() {
+  return {
+    modifiers: createRunModifiers(),
+    rewardChoices: [],
+    rewardClaimed: false,
+    nodes: [],
+    currentNodeId: null,
+    completedNodes: new Set(),
+    activeBattleNodeId: null,
+  };
+}
+
+function createRunModifiers() {
+  return {
+    towerDamage: {
+      arrow: 1,
+      frost: 1,
+      bombard: 1,
+      thorn: 1,
+    },
+    attackSpeed: {
+      arrow: 1,
+      frost: 1,
+      bombard: 1,
+      thorn: 1,
+    },
+    range: 1,
+    slowFactor: 1,
   };
 }
 
@@ -266,15 +377,21 @@ function transitionTo(nextState) {
   currentState = nextState;
   if (nextState === GameState.MENU) {
     battleState = createBattleState();
+    runState = createRunState();
   }
   if (nextState === GameState.RUN_MAP) {
     battleState.waveInProgress = false;
     if (previousState === GameState.REWARD) {
       resetBattleProgression();
+      completeActiveBattleNode();
     }
+    updateRunMapUI();
   }
   if (nextState === GameState.BATTLE && battleState.waveIndex >= WAVE_DATA.length) {
     resetBattleProgression();
+  }
+  if (nextState === GameState.REWARD) {
+    prepareRewards();
   }
   setActiveScreen(nextState);
   updateHud();
@@ -390,6 +507,10 @@ function updateEnemies(dtSeconds) {
   const remainingEnemies = [];
   for (const enemy of battleState.enemies) {
     updateEnemyStatusEffects(enemy, dtSeconds);
+    if (enemy.hp <= 0) {
+      awardBounty(enemy);
+      continue;
+    }
     const currentSpeed = enemy.speed * getSpeedModifier(enemy);
     let moveRemaining = currentSpeed * dtSeconds;
     while (moveRemaining > 0) {
@@ -420,6 +541,11 @@ function updateEnemies(dtSeconds) {
 }
 
 function updateEnemyStatusEffects(enemy, dtSeconds) {
+  enemy.statusEffects.forEach((effect) => {
+    if (effect.type === "dot") {
+      enemy.hp -= effect.damagePerSecond * dtSeconds;
+    }
+  });
   enemy.statusEffects = enemy.statusEffects
     .map((effect) => ({ ...effect, remaining: effect.remaining - dtSeconds }))
     .filter((effect) => effect.remaining > 0);
@@ -490,11 +616,13 @@ function updateTowerUI() {
     arrowTowerButton.disabled = true;
     frostTowerButton.disabled = true;
     bombardTowerButton.disabled = true;
+    thornTowerButton.disabled = true;
     return;
   }
   arrowTowerButton.disabled = !canAffordTower("arrow");
   frostTowerButton.disabled = !canAffordTower("frost");
   bombardTowerButton.disabled = !canAffordTower("bombard");
+  thornTowerButton.disabled = !canAffordTower("thorn");
 }
 
 function updateWavePreview() {
@@ -567,31 +695,7 @@ function renderRunMapScene(time) {
   ctx.clearRect(0, 0, viewportSize.width, viewportSize.height);
   ctx.fillStyle = "rgba(20,17,15,0.7)";
   ctx.fillRect(0, 0, viewportSize.width, viewportSize.height);
-
-  ctx.strokeStyle = "rgba(240,192,112,0.6)";
-  ctx.lineWidth = 2;
-  ctx.beginPath();
-  ctx.moveTo(viewportSize.width * 0.2, viewportSize.height * 0.7);
-  ctx.lineTo(viewportSize.width * 0.4, viewportSize.height * 0.55);
-  ctx.lineTo(viewportSize.width * 0.6, viewportSize.height * 0.4);
-  ctx.lineTo(viewportSize.width * 0.8, viewportSize.height * 0.25);
-  ctx.stroke();
-
-  const nodes = [
-    { x: 0.2, y: 0.7 },
-    { x: 0.4, y: 0.55 },
-    { x: 0.6, y: 0.4 },
-    { x: 0.8, y: 0.25 },
-  ];
-
-  nodes.forEach((node, index) => {
-    ctx.fillStyle = index === 0 ? "#e18b3a" : "#c4b7aa";
-    ctx.beginPath();
-    ctx.arc(viewportSize.width * node.x, viewportSize.height * node.y, 10, 0, Math.PI * 2);
-    ctx.fill();
-  });
-
-  drawTextCentered("Run map preview: choose the next node.", viewportSize.height * 0.85);
+  drawTextCentered("Ashwood trail charted.", viewportSize.height * 0.85);
 }
 
 function renderBattleScene(time) {
@@ -606,10 +710,16 @@ function renderBattleScene(time) {
   }
   drawSpawnAndGate(layout);
 
+  const towerColors = {
+    arrow: "rgba(225, 139, 58, 0.9)",
+    frost: "rgba(120, 170, 220, 0.9)",
+    bombard: "rgba(200, 120, 90, 0.9)",
+    thorn: "rgba(110, 170, 120, 0.9)",
+  };
   battleState.towers.forEach((tower) => {
     const worldPos = getTileCenter(layout, tower);
     const size = layout.tileSize * 0.4;
-    ctx.fillStyle = "rgba(225, 139, 58, 0.9)";
+    ctx.fillStyle = towerColors[tower.type] ?? "rgba(225, 139, 58, 0.9)";
     ctx.fillRect(worldPos.x - size / 2, worldPos.y - size / 2, size, size);
     ctx.fillStyle = "rgba(50, 30, 20, 0.6)";
     ctx.fillRect(worldPos.x - size / 4, worldPos.y - size / 4, size / 2, size / 2);
@@ -762,7 +872,7 @@ function togglePause() {
 
 function updateTowers(dtSeconds) {
   battleState.towers.forEach((tower) => {
-    const data = TOWER_DATA[tower.type];
+    const data = getTowerStats(tower.type);
     if (!data) {
       return;
     }
@@ -783,6 +893,7 @@ function updateTowers(dtSeconds) {
       damage: data.damage,
       splashRadius: data.splashRadius ?? 0,
       slow: data.slow ?? null,
+      dot: data.dot ?? null,
     });
     tower.cooldown = data.fireRate;
   });
@@ -790,6 +901,7 @@ function updateTowers(dtSeconds) {
 
 function updateProjectiles(dtSeconds) {
   const remaining = [];
+  const layout = getMapLayout();
   battleState.projectiles.forEach((projectile) => {
     if (!battleState.enemies.includes(projectile.target)) {
       return;
@@ -798,12 +910,13 @@ function updateProjectiles(dtSeconds) {
     const dx = targetPos.x - projectile.x;
     const dy = targetPos.y - projectile.y;
     const distance = Math.hypot(dx, dy);
-    if (distance < projectile.speed * dtSeconds) {
+    const speedPixels = projectile.speed * layout.tileSize;
+    if (distance < speedPixels * dtSeconds) {
       applyProjectileHit(projectile);
       return;
     }
-    const vx = (dx / distance) * projectile.speed;
-    const vy = (dy / distance) * projectile.speed;
+    const vx = (dx / distance) * speedPixels;
+    const vy = (dy / distance) * speedPixels;
     projectile.x += vx * dtSeconds;
     projectile.y += vy * dtSeconds;
     remaining.push(projectile);
@@ -824,8 +937,15 @@ function applyProjectileHit(projectile) {
         remaining: projectile.slow.duration,
       });
     }
+    if (projectile.dot) {
+      applyStatusEffect(enemy, {
+        type: "dot",
+        damagePerSecond: projectile.dot.damagePerSecond,
+        remaining: projectile.dot.duration,
+      });
+    }
     if (enemy.hp <= 0) {
-      battleState.gold += enemy.bounty;
+      awardBounty(enemy);
     }
   });
   battleState.enemies = battleState.enemies.filter((enemy) => enemy.hp > 0);
@@ -846,7 +966,12 @@ function applyStatusEffect(enemy, effect) {
   const existing = enemy.statusEffects.find((item) => item.type === effect.type);
   if (existing) {
     existing.remaining = Math.max(existing.remaining, effect.remaining);
-    existing.factor = Math.min(existing.factor, effect.factor);
+    if (effect.type === "slow") {
+      existing.factor = Math.min(existing.factor, effect.factor);
+    }
+    if (effect.type === "dot") {
+      existing.damagePerSecond = Math.max(existing.damagePerSecond, effect.damagePerSecond);
+    }
   } else {
     enemy.statusEffects.push(effect);
   }
@@ -869,6 +994,47 @@ function findTargetForTower(tower, range) {
     }
   });
   return bestTarget;
+}
+
+function getTowerStats(towerType) {
+  const data = TOWER_DATA[towerType];
+  if (!data) {
+    return null;
+  }
+  const modifiers = runState.modifiers;
+  const attackSpeed = modifiers.attackSpeed[towerType] ?? 1;
+  const damageMultiplier = modifiers.towerDamage[towerType] ?? 1;
+  const damage = data.damage * damageMultiplier;
+  const range = data.range * modifiers.range;
+  const fireRate = data.fireRate / attackSpeed;
+  const slow = data.slow
+    ? {
+        ...data.slow,
+        factor: data.slow.factor * modifiers.slowFactor,
+      }
+    : null;
+  const dot = data.dot
+    ? {
+        ...data.dot,
+        damagePerSecond: data.dot.damagePerSecond * damageMultiplier,
+      }
+    : null;
+  return {
+    ...data,
+    damage,
+    range,
+    fireRate,
+    slow,
+    dot,
+  };
+}
+
+function awardBounty(enemy) {
+  if (enemy.rewarded) {
+    return;
+  }
+  battleState.gold += enemy.bounty;
+  enemy.rewarded = true;
 }
 
 function getEnemyWorldPosition(enemy) {
@@ -895,13 +1061,215 @@ function getTileFromPointer(event) {
   return { x: gridX, y: gridY };
 }
 
+function prepareRewards() {
+  runState.rewardChoices = rollRewards(3);
+  runState.rewardClaimed = false;
+  renderRewardChoices();
+  continueRunButton.disabled = true;
+}
+
+function rollRewards(count) {
+  const choices = [];
+  const used = new Set();
+  while (choices.length < count && used.size < REWARD_POOL.length) {
+    const reward = pickRewardByRarity();
+    if (!reward || used.has(reward.id)) {
+      continue;
+    }
+    used.add(reward.id);
+    choices.push(reward);
+  }
+  return choices;
+}
+
+function pickRewardByRarity() {
+  const rarityWeights = {
+    Common: 0.65,
+    Rare: 0.28,
+    Epic: 0.07,
+  };
+  const roll = Math.random();
+  let cumulative = 0;
+  let selectedRarity = "Common";
+  for (const [rarity, weight] of Object.entries(rarityWeights)) {
+    cumulative += weight;
+    if (roll <= cumulative) {
+      selectedRarity = rarity;
+      break;
+    }
+  }
+  const filtered = REWARD_POOL.filter((reward) => reward.rarity === selectedRarity);
+  if (!filtered.length) {
+    return REWARD_POOL[Math.floor(Math.random() * REWARD_POOL.length)];
+  }
+  return filtered[Math.floor(Math.random() * filtered.length)];
+}
+
+function renderRewardChoices() {
+  rewardGrid.innerHTML = "";
+  runState.rewardChoices.forEach((reward) => {
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = "button button--metal reward-card";
+    button.innerHTML = `
+      <span class="reward-card__rarity">${reward.rarity}</span>
+      <strong>${reward.name}</strong>
+      <span class="muted">${reward.description}</span>
+    `;
+    button.addEventListener("click", () => selectReward(reward, button));
+    rewardGrid.appendChild(button);
+  });
+}
+
+function selectReward(reward, button) {
+  if (runState.rewardClaimed) {
+    return;
+  }
+  applyReward(reward);
+  runState.rewardClaimed = true;
+  continueRunButton.disabled = false;
+  rewardGrid.querySelectorAll(".reward-card").forEach((card) => {
+    card.classList.toggle("is-selected", card === button);
+    card.disabled = true;
+  });
+}
+
+function applyReward(reward) {
+  reward.apply(runState.modifiers, battleState);
+  updateHud();
+  updateTowerUI();
+}
+
+function generateRunMap() {
+  const nodes = [];
+  let idCounter = 0;
+  RUN_MAP_BLUEPRINT.forEach((column, depth) => {
+    column.forEach((type, index) => {
+      nodes.push({
+        id: `node-${idCounter}`,
+        type,
+        depth,
+        index,
+        next: [],
+      });
+      idCounter += 1;
+    });
+  });
+  nodes.forEach((node) => {
+    const nextDepth = node.depth + 1;
+    if (nextDepth >= RUN_MAP_BLUEPRINT.length) {
+      return;
+    }
+    const nextColumn = nodes.filter((candidate) => candidate.depth === nextDepth);
+    const preferred = nextColumn.filter(
+      (candidate) =>
+        candidate.index === node.index || candidate.index === node.index + 1
+    );
+    const targets = preferred.length ? preferred : nextColumn;
+    node.next = targets.map((target) => target.id);
+  });
+  return nodes;
+}
+
+function initializeRunMap() {
+  runState.nodes = generateRunMap();
+  runState.currentNodeId = runState.nodes.find((node) => node.depth === 0)?.id ?? null;
+  runState.completedNodes = new Set();
+  runState.activeBattleNodeId = null;
+  updateRunMapUI();
+}
+
+function updateRunMapUI() {
+  if (!runMapGrid) {
+    return;
+  }
+  runMapGrid.innerHTML = "";
+  const nodesByDepth = RUN_MAP_BLUEPRINT.map((_, depth) =>
+    runState.nodes.filter((node) => node.depth === depth)
+  );
+  const currentNode = runState.nodes.find((node) => node.id === runState.currentNodeId);
+  const available = new Set(currentNode?.next ?? []);
+  nodesByDepth.forEach((column) => {
+    const columnEl = document.createElement("div");
+    columnEl.className = "run-map__column";
+    column.forEach((node) => {
+      const button = document.createElement("button");
+      button.type = "button";
+      button.className = "button button--metal run-map__node";
+      button.dataset.nodeId = node.id;
+      const title = node.type === "camp" ? "Camp" : node.type;
+      button.innerHTML = `<strong>${title}</strong>${node.type.toUpperCase()}`;
+      const isCurrent = node.id === runState.currentNodeId;
+      const isCompleted = runState.completedNodes.has(node.id);
+      const isAvailable = available.has(node.id);
+      button.classList.toggle("is-current", isCurrent);
+      button.classList.toggle("is-complete", isCompleted);
+      if (!isAvailable) {
+        button.classList.add("is-locked");
+        button.disabled = true;
+      }
+      if (isAvailable) {
+        button.addEventListener("click", () => handleNodeSelection(node));
+      }
+      columnEl.appendChild(button);
+    });
+    runMapGrid.appendChild(columnEl);
+  });
+}
+
+function handleNodeSelection(node) {
+  if (runState.completedNodes.has(node.id)) {
+    return;
+  }
+  if (node.type === "battle" || node.type === "elite" || node.type === "boss") {
+    runState.activeBattleNodeId = node.id;
+    runState.currentNodeId = node.id;
+    runStatus.textContent = `Deploying to ${node.type} battle.`;
+    transitionTo(GameState.BATTLE);
+    return;
+  }
+  resolveNonBattleNode(node);
+}
+
+function resolveNonBattleNode(node) {
+  runState.currentNodeId = node.id;
+  runState.completedNodes.add(node.id);
+  if (node.type === "merchant") {
+    battleState.gold += 30;
+    runStatus.textContent = "Merchant trade: +30 gold.";
+  } else if (node.type === "shrine") {
+    runState.modifiers.range *= 1.08;
+    battleState.baseHp = Math.max(battleState.baseHp - 5, 0);
+    runStatus.textContent = "Shrine blessing: range up, base HP down.";
+  } else if (node.type === "event") {
+    battleState.gold += 15;
+    runStatus.textContent = "Event: found supplies (+15 gold).";
+  } else if (node.type === "camp") {
+    runStatus.textContent = "Camp established. Prepare to march.";
+  }
+  updateHud();
+  updateRunMapUI();
+}
+
+function completeActiveBattleNode() {
+  if (!runState.activeBattleNodeId) {
+    return;
+  }
+  runState.completedNodes.add(runState.activeBattleNodeId);
+  runState.currentNodeId = runState.activeBattleNodeId;
+  if (runState.activeBattleNodeId) {
+    runStatus.textContent = "Node cleared. Choose your next path.";
+  }
+  runState.activeBattleNodeId = null;
+  updateRunMapUI();
+}
+
 function bindControls() {
   startRunButton.addEventListener("click", () => {
+    runState = createRunState();
+    battleState = createBattleState();
+    initializeRunMap();
     transitionTo(GameState.RUN_MAP);
-  });
-
-  enterBattleButton.addEventListener("click", () => {
-    transitionTo(GameState.BATTLE);
   });
 
   returnToMenuButton.addEventListener("click", () => {
@@ -921,6 +1289,9 @@ function bindControls() {
   });
 
   continueRunButton.addEventListener("click", () => {
+    if (!runState.rewardClaimed) {
+      return;
+    }
     transitionTo(GameState.RUN_MAP);
   });
 
@@ -973,6 +1344,13 @@ function bindControls() {
     placementMode = "bombard";
   });
 
+  thornTowerButton.addEventListener("click", () => {
+    if (currentState !== GameState.BATTLE) {
+      return;
+    }
+    placementMode = "thorn";
+  });
+
   canvas.addEventListener("pointermove", (event) => {
     if (!placementMode || currentState !== GameState.BATTLE) {
       hoverTile = null;
@@ -1016,6 +1394,7 @@ function init() {
   updateWaveUI();
   updateTowerUI();
   updateWavePreview();
+  initializeRunMap();
   setActiveScreen(currentState);
   window.addEventListener("resize", resizeCanvas);
   requestAnimationFrame(loop);
