@@ -194,6 +194,15 @@ function createBattleState() {
   };
 }
 
+function resetBattleProgression() {
+  const { baseHp, gold } = battleState;
+  battleState = {
+    ...createBattleState(),
+    baseHp,
+    gold,
+  };
+}
+
 function updateHud() {
   if (currentState === GameState.MENU) {
     baseHpLabel.textContent = "-";
@@ -253,12 +262,19 @@ function setActiveScreen(nextState) {
 }
 
 function transitionTo(nextState) {
+  const previousState = currentState;
   currentState = nextState;
   if (nextState === GameState.MENU) {
     battleState = createBattleState();
   }
   if (nextState === GameState.RUN_MAP) {
     battleState.waveInProgress = false;
+    if (previousState === GameState.REWARD) {
+      resetBattleProgression();
+    }
+  }
+  if (nextState === GameState.BATTLE && battleState.waveIndex >= WAVE_DATA.length) {
+    resetBattleProgression();
   }
   setActiveScreen(nextState);
   updateHud();
@@ -713,6 +729,13 @@ function render(time) {
 }
 
 function loop(timestamp) {
+  if (isPaused) {
+    lastFrameTime = timestamp;
+    render(timestamp);
+    requestAnimationFrame(loop);
+    return;
+  }
+
   const delta = timestamp - lastFrameTime;
   lastFrameTime = timestamp;
   accumulator += delta;
@@ -730,6 +753,9 @@ function loop(timestamp) {
 
 function togglePause() {
   isPaused = !isPaused;
+  if (isPaused) {
+    accumulator = 0;
+  }
   pauseOverlay.classList.toggle("is-visible", isPaused);
   pauseButton.textContent = isPaused ? "Resume" : "Pause";
 }
