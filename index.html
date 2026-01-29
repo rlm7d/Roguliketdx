@@ -16,31 +16,128 @@
           <p>Wardens of Emberwatch stand against the Bogclan</p>
         </div>
       </div>
+      <div class="hud">
+        <div><span class="hud__label">Base</span><span id="baseHp">100%</span></div>
+        <div><span class="hud__label">Gold</span><span id="gold">120</span></div>
+        <div><span class="hud__label">Wave</span><span id="wave">0 / 0</span></div>
+        <div><span class="hud__label">Act</span><span id="act">Menu</span></div>
+      </div>
       <div class="top-actions">
+        <button id="pauseButton" class="button button--ghost" type="button">Pause</button>
         <button id="settingsButton" class="button button--metal" type="button">Settings</button>
       </div>
     </header>
 
     <main class="layout">
-      <section class="panel menu-panel">
-        <h2>Run Menu</h2>
-        <p class="muted">Prepare your wardens and fortify the pass.</p>
-        <button id="startRunButton" class="button button--ember" type="button">Start Run</button>
-        <div class="menu-panel__status">
-          <span id="runStatus">Awaiting orders...</span>
+      <section class="panel side-panel">
+        <div id="menuScreen" class="screen screen--active">
+          <h2>Run Menu</h2>
+          <p class="muted">Prepare your wardens and fortify the pass.</p>
+          <button id="startRunButton" class="button button--ember" type="button">Start Run</button>
+          <div class="menu-panel__status">
+            <span id="runStatus">Awaiting orders...</span>
+          </div>
+        </div>
+
+        <div id="runMapScreen" class="screen">
+          <h2>Run Map</h2>
+          <p class="muted">Choose the next node on the Ashwood trail.</p>
+          <div class="screen__actions">
+            <button id="enterBattleButton" class="button button--ember" type="button">Enter Battle</button>
+            <button id="returnToMenuButton" class="button button--ghost" type="button">Return to Menu</button>
+          </div>
+        </div>
+
+        <div id="battleScreen" class="screen">
+          <h2>Battle Briefing</h2>
+          <p class="muted">Hold the pass. Start the next wave when ready.</p>
+          <div class="battle-speed">
+            <h3>Battle Speed</h3>
+            <div class="battle-speed__controls">
+              <button id="speedNormalButton" class="button button--metal is-active" type="button">
+                1x
+              </button>
+              <button id="speedFastButton" class="button button--metal" type="button">2x</button>
+            </div>
+          </div>
+          <div class="tower-shop">
+            <h3>Available Towers</h3>
+            <p class="muted">Select a tower, then place it on a buildable tile.</p>
+            <div class="tower-shop__grid">
+              <button id="arrowTowerButton" class="button button--ember" type="button">
+                Arrow Watch (40g)
+              </button>
+              <button id="frostTowerButton" class="button button--metal" type="button">
+                Frost Totem (55g)
+              </button>
+              <button id="bombardTowerButton" class="button button--metal" type="button">
+                Bombard (70g)
+              </button>
+            </div>
+          </div>
+          <div class="battle-controls">
+            <button id="startWaveButton" class="button button--ember" type="button">Start Wave</button>
+            <p id="waveStatus" class="muted">Waves remaining.</p>
+          </div>
+          <div class="wave-preview panel">
+            <h3>Wave Preview</h3>
+            <div id="wavePreviewList" class="wave-preview__list"></div>
+          </div>
+          <div class="screen__actions">
+            <button id="backToMapButton" class="button button--ghost" type="button">Return to Run Map</button>
+            <button id="endRunButton" class="button button--metal" type="button">End Run</button>
+          </div>
+        </div>
+
+        <div id="rewardScreen" class="screen">
+          <h2>Reward Choices</h2>
+          <p class="muted">Choose one blessing before returning to the map.</p>
+          <div class="reward-grid">
+            <button class="button button--metal reward-card" type="button">
+              Sharpened Fletching
+              <span class="muted">Arrow Watch damage +8%</span>
+            </button>
+            <button class="button button--metal reward-card" type="button">
+              Cold Iron Rings
+              <span class="muted">Slow strength +10%</span>
+            </button>
+            <button class="button button--metal reward-card" type="button">
+              Ember Reserves
+              <span class="muted">Start next battle with +20 gold</span>
+            </button>
+          </div>
+          <button id="continueRunButton" class="button button--ember" type="button">
+            Return to Run Map
+          </button>
+        </div>
+
+        <div id="gameOverScreen" class="screen">
+          <h2>Bastion Fallen</h2>
+          <p class="muted">The wardens regroup in Ashwood. Try again.</p>
+          <button id="restartButton" class="button button--ember" type="button">Return to Menu</button>
         </div>
       </section>
 
-      <section class="battlefield">
-        <canvas id="gameCanvas" width="1280" height="720" aria-label="Battlefield"></canvas>
-        <div class="overlay panel">
-          <h3>Battlefield Preview</h3>
-          <p class="muted">Map and wave systems will arrive in the next milestone.</p>
-          <ul>
-            <li>Base: 100%</li>
-            <li>Gold: 120</li>
-            <li>Wave: 0 / 0</li>
-          </ul>
+      <section class="stage">
+        <div class="battlefield is-visible" id="battlefieldStage">
+          <canvas id="gameCanvas" width="1280" height="720" aria-label="Battlefield"></canvas>
+          <div class="overlay panel">
+            <h3>Battlefield Preview</h3>
+            <p class="muted">Enemy scouts are probing the pass.</p>
+            <ul>
+              <li>Base: Monitor the HUD.</li>
+              <li>Wave: Use Start Wave to begin.</li>
+              <li>Build: Select a tower, then tap a tile.</li>
+              <li>Status: Path debug toggle (V).</li>
+            </ul>
+          </div>
+          <div id="pauseOverlay" class="pause-overlay">
+            <span>Paused</span>
+          </div>
+        </div>
+        <div id="runMapStage" class="run-map panel">
+          <h3>Run Map Placeholder</h3>
+          <p class="muted">Node graph incoming. Choose a path through Ashwood.</p>
         </div>
       </section>
     </main>
