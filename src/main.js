@@ -30,6 +30,16 @@ const WAVE_DATA = [
   { count: 8, hp: 28, speed: 1.1, bounty: 5, spawnDelay: 0.6, damage: 6 },
   { count: 10, hp: 36, speed: 1.0, bounty: 6, spawnDelay: 0.5, damage: 7 },
 ];
+const TOWER_DATA = {
+  arrow: {
+    name: "Arrow Watch",
+    cost: 40,
+    range: 2.6,
+    fireRate: 0.6,
+    damage: 12,
+    projectileSpeed: 6,
+  },
+};
 const PATH_TILE_SET = new Set(
   MAP_CONFIG.path.map((point) => `${point.x},${point.y}`)
 );
@@ -66,6 +76,7 @@ const endRunButton = document.querySelector("#endRunButton");
 const restartButton = document.querySelector("#restartButton");
 const startWaveButton = document.querySelector("#startWaveButton");
 const waveStatus = document.querySelector("#waveStatus");
+const arrowTowerButton = document.querySelector("#arrowTowerButton");
 
 const FIXED_STEP = 1000 / 60;
 
@@ -78,6 +89,8 @@ let isPaused = false;
 let demoPulse = 0;
 let showPathDebug = true;
 let battleState = createBattleState();
+let placementMode = null;
+let hoverTile = null;
 
 function loadSettings() {
   try {
@@ -140,6 +153,8 @@ function createBattleState() {
     gold: 120,
     waveIndex: 0,
     enemies: [],
+    towers: [],
+    projectiles: [],
     waveInProgress: false,
     spawnTimer: 0,
     spawnIndex: 0,
@@ -208,6 +223,7 @@ function transitionTo(nextState) {
   setActiveScreen(nextState);
   updateHud();
   updateWaveUI();
+  updateTowerUI();
   runStatus.textContent =
     nextState === GameState.MENU ? "Awaiting orders..." : "Run underway.";
 }
@@ -384,6 +400,51 @@ function updateWaveUI() {
   }
 }
 
+function updateTowerUI() {
+  if (currentState !== GameState.BATTLE) {
+    arrowTowerButton.disabled = true;
+    return;
+  }
+  arrowTowerButton.disabled = !canAffordTower("arrow");
+}
+
+function getTowerCost(type) {
+  return TOWER_DATA[type]?.cost ?? 0;
+}
+
+function canAffordTower(type) {
+  return battleState.gold >= getTowerCost(type);
+}
+
+function isBuildableTile(tile) {
+  if (!tile) {
+    return false;
+  }
+  if (tile.x < 0 || tile.y < 0 || tile.x >= MAP_CONFIG.cols || tile.y >= MAP_CONFIG.rows) {
+    return false;
+  }
+  if (PATH_TILE_SET.has(`${tile.x},${tile.y}`)) {
+    return false;
+  }
+  return !battleState.towers.some((tower) => tower.x === tile.x && tower.y === tile.y);
+}
+
+function placeTower(tile, type) {
+  if (!isBuildableTile(tile) || !canAffordTower(type)) {
+    return false;
+  }
+  battleState.gold -= getTowerCost(type);
+  battleState.towers.push({
+    type,
+    x: tile.x,
+    y: tile.y,
+    cooldown: 0,
+  });
+  updateHud();
+  updateTowerUI();
+  return true;
+}
+
 function renderMenuScene(time) {
   ctx.clearRect(0, 0, viewportSize.width, viewportSize.height);
   ctx.fillStyle = "rgba(255,255,255,0.03)";
@@ -435,14 +496,24 @@ function renderBattleScene(time) {
   }
   drawSpawnAndGate(layout);
 
+  battleState.towers.forEach((tower) => {
+    const worldPos = getTileCenter(layout, tower);
+    const size = layout.tileSize * 0.4;
+    ctx.fillStyle = "rgba(225, 139, 58, 0.9)";
+    ctx.fillRect(worldPos.x - size / 2, worldPos.y - size / 2, size, size);
+    ctx.fillStyle = "rgba(50, 30, 20, 0.6)";
+    ctx.fillRect(worldPos.x - size / 4, worldPos.y - size / 4, size / 2, size / 2);
+  });
+
+  battleState.projectiles.forEach((projectile) => {
+    ctx.fillStyle = "rgba(245, 239, 230, 0.9)";
+    ctx.beginPath();
+    ctx.arc(projectile.x, projectile.y, layout.tileSize * 0.08, 0, Math.PI * 2);
+    ctx.fill();
+  });
+
   battleState.enemies.forEach((enemy) => {
-    const current = MAP_CONFIG.path[enemy.segmentIndex];
-    const next = MAP_CONFIG.path[enemy.segmentIndex + 1] ?? current;
-    const position = {
-      x: current.x + (next.x - current.x) * enemy.segmentProgress,
-      y: current.y + (next.y - current.y) * enemy.segmentProgress,
-    };
-    const worldPos = getTileCenter(layout, position);
+    const worldPos = getEnemyWorldPosition(enemy);
     const radius = layout.tileSize * 0.25;
     ctx.fillStyle = "rgba(120, 180, 110, 0.9)";
     ctx.beginPath();
@@ -458,6 +529,16 @@ function renderBattleScene(time) {
     ctx.fillStyle = "rgba(225, 139, 58, 0.9)";
     ctx.fillRect(barX, barY, barWidth * (enemy.hp / enemy.maxHp), barHeight);
   });
+
+  if (placementMode && hoverTile) {
+    const worldPos = getTileCenter(layout, hoverTile);
+    const size = layout.tileSize * 0.8;
+    ctx.strokeStyle = isBuildableTile(hoverTile)
+      ? "rgba(120, 200, 150, 0.8)"
+      : "rgba(200, 80, 80, 0.8)";
+    ctx.lineWidth = 2;
+    ctx.strokeRect(worldPos.x - size / 2, worldPos.y - size / 2, size, size);
+  }
 
   ctx.fillStyle = "rgba(245,239,230,0.8)";
   ctx.font = "14px 'Segoe UI', sans-serif";
@@ -494,7 +575,10 @@ function update(dt) {
     const dtSeconds = dt / 1000;
     updateWaveSpawner(dtSeconds);
     updateEnemies(dtSeconds);
+    updateTowers(dtSeconds);
+    updateProjectiles(dtSeconds);
     updateWaveUI();
+    updateTowerUI();
     updateHud();
     if (battleState.baseHp <= 0) {
       transitionTo(GameState.GAME_OVER);
@@ -542,6 +626,105 @@ function togglePause() {
   pauseButton.textContent = isPaused ? "Resume" : "Pause";
 }
 
+function updateTowers(dtSeconds) {
+  battleState.towers.forEach((tower) => {
+    const data = TOWER_DATA[tower.type];
+    if (!data) {
+      return;
+    }
+    tower.cooldown = Math.max(tower.cooldown - dtSeconds, 0);
+    if (tower.cooldown > 0) {
+      return;
+    }
+    const target = findTargetForTower(tower, data.range);
+    if (!target) {
+      return;
+    }
+    const worldOrigin = getTileCenter(getMapLayout(), tower);
+    battleState.projectiles.push({
+      x: worldOrigin.x,
+      y: worldOrigin.y,
+      target,
+      speed: data.projectileSpeed,
+      damage: data.damage,
+    });
+    tower.cooldown = data.fireRate;
+  });
+}
+
+function updateProjectiles(dtSeconds) {
+  const remaining = [];
+  battleState.projectiles.forEach((projectile) => {
+    if (!battleState.enemies.includes(projectile.target)) {
+      return;
+    }
+    const targetPos = getEnemyWorldPosition(projectile.target);
+    const dx = targetPos.x - projectile.x;
+    const dy = targetPos.y - projectile.y;
+    const distance = Math.hypot(dx, dy);
+    if (distance < projectile.speed * dtSeconds) {
+      projectile.target.hp -= projectile.damage;
+      if (projectile.target.hp <= 0) {
+        battleState.gold += projectile.target.bounty;
+        battleState.enemies = battleState.enemies.filter(
+          (enemy) => enemy !== projectile.target
+        );
+        updateTowerUI();
+      }
+      return;
+    }
+    const vx = (dx / distance) * projectile.speed;
+    const vy = (dy / distance) * projectile.speed;
+    projectile.x += vx * dtSeconds;
+    projectile.y += vy * dtSeconds;
+    remaining.push(projectile);
+  });
+  battleState.projectiles = remaining;
+}
+
+function findTargetForTower(tower, range) {
+  const towerPos = getTileCenter(getMapLayout(), tower);
+  let bestTarget = null;
+  let bestProgress = -Infinity;
+  battleState.enemies.forEach((enemy) => {
+    const enemyPos = getEnemyWorldPosition(enemy);
+    const distance = Math.hypot(enemyPos.x - towerPos.x, enemyPos.y - towerPos.y);
+    if (distance > range * getMapLayout().tileSize) {
+      return;
+    }
+    const progress = enemy.segmentIndex + enemy.segmentProgress;
+    if (progress > bestProgress) {
+      bestProgress = progress;
+      bestTarget = enemy;
+    }
+  });
+  return bestTarget;
+}
+
+function getEnemyWorldPosition(enemy) {
+  const layout = getMapLayout();
+  const current = MAP_CONFIG.path[enemy.segmentIndex];
+  const next = MAP_CONFIG.path[enemy.segmentIndex + 1] ?? current;
+  const position = {
+    x: current.x + (next.x - current.x) * enemy.segmentProgress,
+    y: current.y + (next.y - current.y) * enemy.segmentProgress,
+  };
+  return getTileCenter(layout, position);
+}
+
+function getTileFromPointer(event) {
+  const rect = canvas.getBoundingClientRect();
+  const layout = getMapLayout();
+  const x = event.clientX - rect.left;
+  const y = event.clientY - rect.top;
+  const gridX = Math.floor((x - layout.offsetX) / layout.tileSize);
+  const gridY = Math.floor((y - layout.offsetY) / layout.tileSize);
+  if (Number.isNaN(gridX) || Number.isNaN(gridY)) {
+    return null;
+  }
+  return { x: gridX, y: gridY };
+}
+
 function bindControls() {
   startRunButton.addEventListener("click", () => {
     transitionTo(GameState.RUN_MAP);
@@ -579,6 +762,37 @@ function bindControls() {
     updateWaveUI();
   });
 
+  arrowTowerButton.addEventListener("click", () => {
+    if (currentState !== GameState.BATTLE) {
+      return;
+    }
+    placementMode = "arrow";
+  });
+
+  canvas.addEventListener("pointermove", (event) => {
+    if (!placementMode || currentState !== GameState.BATTLE) {
+      hoverTile = null;
+      return;
+    }
+    hoverTile = getTileFromPointer(event);
+  });
+
+  canvas.addEventListener("pointerleave", () => {
+    hoverTile = null;
+  });
+
+  canvas.addEventListener("pointerdown", (event) => {
+    if (!placementMode || currentState !== GameState.BATTLE) {
+      return;
+    }
+    const tile = getTileFromPointer(event);
+    const placed = placeTower(tile, placementMode);
+    if (placed) {
+      placementMode = null;
+      updateTowerUI();
+    }
+  });
+
   window.addEventListener("keydown", (event) => {
     if (event.key.toLowerCase() === "p" || event.key === "Escape") {
       togglePause();
@@ -596,6 +810,7 @@ function init() {
   resizeCanvas();
   updateHud();
   updateWaveUI();
+  updateTowerUI();
   setActiveScreen(currentState);
   window.addEventListener("resize", resizeCanvas);
   requestAnimationFrame(loop);

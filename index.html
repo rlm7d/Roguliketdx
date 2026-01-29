@@ -51,6 +51,13 @@
         <div id="battleScreen" class="screen">
           <h2>Battle Briefing</h2>
           <p class="muted">Hold the pass. Start the next wave when ready.</p>
+          <div class="tower-shop">
+            <h3>Arrow Watch</h3>
+            <p class="muted">Basic wardens. Fast single-target shots.</p>
+            <button id="arrowTowerButton" class="button button--ember" type="button">
+              Build (40g)
+            </button>
+          </div>
           <div class="battle-controls">
             <button id="startWaveButton" class="button button--ember" type="button">Start Wave</button>
             <p id="waveStatus" class="muted">Waves remaining.</p>
@@ -77,6 +84,7 @@
             <ul>
               <li>Base: Monitor the HUD.</li>
               <li>Wave: Use Start Wave to begin.</li>
+              <li>Build: Select Arrow Watch, then tap a tile.</li>
               <li>Status: Path debug toggle (V).</li>
             </ul>
           </div>
