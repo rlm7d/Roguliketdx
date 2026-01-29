@@ -213,12 +213,119 @@ function renderBattleScene(time) {
   ctx.clearRect(0, 0, viewportSize.width, viewportSize.height);
   ctx.fillStyle = "rgba(255,255,255,0.03)";
   ctx.fillRect(0, 0, viewportSize.width, viewportSize.height);
+  drawTextCentered("Ashwood Bastion", viewportSize.height / 2 - 20);
+  drawTextCentered("Prepare the wardens.", viewportSize.height / 2 + 10);
+}
 
-  ctx.fillStyle = "rgba(225,139,58,0.25)";
+function renderRunMapScene(time) {
+  ctx.clearRect(0, 0, viewportSize.width, viewportSize.height);
+  ctx.fillStyle = "rgba(20,17,15,0.7)";
+  ctx.fillRect(0, 0, viewportSize.width, viewportSize.height);
+
+  ctx.strokeStyle = "rgba(240,192,112,0.6)";
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.moveTo(viewportSize.width * 0.2, viewportSize.height * 0.7);
+  ctx.lineTo(viewportSize.width * 0.4, viewportSize.height * 0.55);
+  ctx.lineTo(viewportSize.width * 0.6, viewportSize.height * 0.4);
+  ctx.lineTo(viewportSize.width * 0.8, viewportSize.height * 0.25);
+  ctx.stroke();
+
+  const nodes = [
+    { x: 0.2, y: 0.7 },
+    { x: 0.4, y: 0.55 },
+    { x: 0.6, y: 0.4 },
+    { x: 0.8, y: 0.25 },
+  ];
+
+  nodes.forEach((node, index) => {
+    ctx.fillStyle = index === 0 ? "#e18b3a" : "#c4b7aa";
+    ctx.beginPath();
+    ctx.arc(viewportSize.width * node.x, viewportSize.height * node.y, 10, 0, Math.PI * 2);
+    ctx.fill();
+  });
+
+  drawTextCentered("Run map preview: choose the next node.", viewportSize.height * 0.85);
+}
+
+function renderBattleScene(time) {
+  ctx.clearRect(0, 0, viewportSize.width, viewportSize.height);
+  ctx.fillStyle = "rgba(20, 19, 18, 0.9)";
+  ctx.fillRect(0, 0, viewportSize.width, viewportSize.height);
+
+  const layout = getMapLayout();
+  drawBattlefieldGrid(layout);
+  if (showPathDebug) {
+    drawPathLine(layout);
+  }
+  drawSpawnAndGate(layout);
+
+  battleState.towers.forEach((tower) => {
+    const worldPos = getTileCenter(layout, tower);
+    const size = layout.tileSize * 0.4;
+    ctx.fillStyle = "rgba(225, 139, 58, 0.9)";
+    ctx.fillRect(worldPos.x - size / 2, worldPos.y - size / 2, size, size);
+    ctx.fillStyle = "rgba(50, 30, 20, 0.6)";
+    ctx.fillRect(worldPos.x - size / 4, worldPos.y - size / 4, size / 2, size / 2);
+  });
+
+  battleState.projectiles.forEach((projectile) => {
+    ctx.fillStyle = "rgba(245, 239, 230, 0.9)";
+    ctx.beginPath();
+    ctx.arc(projectile.x, projectile.y, layout.tileSize * 0.08, 0, Math.PI * 2);
+    ctx.fill();
+  });
+
+  battleState.enemies.forEach((enemy) => {
+    const worldPos = getEnemyWorldPosition(enemy);
+    const radius = layout.tileSize * 0.25;
+    const slowed = enemy.statusEffects.some((effect) => effect.type === "slow");
+    ctx.fillStyle = slowed ? "rgba(120, 170, 220, 0.9)" : "rgba(120, 180, 110, 0.9)";
+    ctx.beginPath();
+    ctx.arc(worldPos.x, worldPos.y, radius, 0, Math.PI * 2);
+    ctx.fill();
+
+    const barWidth = layout.tileSize * 0.5;
+    const barHeight = 4;
+    const barX = worldPos.x - barWidth / 2;
+    const barY = worldPos.y - radius - 8;
+    ctx.fillStyle = "rgba(40, 30, 30, 0.8)";
+    ctx.fillRect(barX, barY, barWidth, barHeight);
+    ctx.fillStyle = "rgba(225, 139, 58, 0.9)";
+    ctx.fillRect(barX, barY, barWidth * (enemy.hp / enemy.maxHp), barHeight);
+  });
+
+  if (placementMode && hoverTile) {
+    const worldPos = getTileCenter(layout, hoverTile);
+    const size = layout.tileSize * 0.8;
+    ctx.strokeStyle = isBuildableTile(hoverTile)
+      ? "rgba(120, 200, 150, 0.8)"
+      : "rgba(200, 80, 80, 0.8)";
+    ctx.lineWidth = 2;
+    ctx.strokeRect(worldPos.x - size / 2, worldPos.y - size / 2, size, size);
+  }
+
+  ctx.fillStyle = "rgba(245,239,230,0.8)";
+  ctx.font = "14px 'Segoe UI', sans-serif";
+  ctx.textAlign = "left";
+  ctx.fillText(
+    `Path Debug: ${showPathDebug ? "On" : "Off"} (V)`,
+    layout.offsetX,
+    layout.offsetY - 10
+  );
+
+  ctx.fillStyle = "rgba(225,139,58,0.2)";
   const pulse = 20 + Math.sin(time / 800) * 10;
   ctx.beginPath();
-  ctx.arc(viewportSize.width / 2, viewportSize.height / 2, 80 + pulse, 0, Math.PI * 2);
+  ctx.arc(
+    layout.offsetX + layout.width * 0.8,
+    layout.offsetY + layout.height * 0.2,
+    50 + pulse,
+    0,
+    Math.PI * 2
+  );
   ctx.fill();
+}
 
   drawTextCentered("Battlefield Preview", viewportSize.height / 2 + 8, "rgba(245,239,230,0.8)");
 }
@@ -253,6 +360,13 @@ function render(time) {
 }
 
 function loop(timestamp) {
+  if (isPaused) {
+    lastFrameTime = timestamp;
+    render(timestamp);
+    requestAnimationFrame(loop);
+    return;
+  }
+
   const delta = timestamp - lastFrameTime;
   lastFrameTime = timestamp;
   accumulator += delta;

@@ -140,11 +140,6 @@ body {
   gap: 10px;
 }
 
-<<<<<<< HEAD
-<<<<<<< HEAD
-=======
-=======
->>>>>>> codex/create-roguelike-tower-defense-game-v91bc3
 .battle-controls {
   display: flex;
   flex-direction: column;
@@ -228,10 +223,7 @@ body {
   text-align: left;
 }
 
-<<<<<<< HEAD
->>>>>>> codex/create-roguelike-tower-defense-game
-=======
->>>>>>> codex/create-roguelike-tower-defense-game-v91bc3
+
 .stage {
   position: relative;
   display: grid;
@@ -411,3 +403,4 @@ body {
     display: none;
   }
 }
+
