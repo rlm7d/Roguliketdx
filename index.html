@@ -16,31 +16,73 @@
           <p>Wardens of Emberwatch stand against the Bogclan</p>
         </div>
       </div>
+      <div class="hud">
+        <div><span class="hud__label">Base</span><span id="baseHp">100%</span></div>
+        <div><span class="hud__label">Gold</span><span id="gold">120</span></div>
+        <div><span class="hud__label">Wave</span><span id="wave">0 / 0</span></div>
+        <div><span class="hud__label">Act</span><span id="act">Menu</span></div>
+      </div>
       <div class="top-actions">
+        <button id="pauseButton" class="button button--ghost" type="button">Pause</button>
         <button id="settingsButton" class="button button--metal" type="button">Settings</button>
       </div>
     </header>
 
     <main class="layout">
-      <section class="panel menu-panel">
-        <h2>Run Menu</h2>
-        <p class="muted">Prepare your wardens and fortify the pass.</p>
-        <button id="startRunButton" class="button button--ember" type="button">Start Run</button>
-        <div class="menu-panel__status">
-          <span id="runStatus">Awaiting orders...</span>
+      <section class="panel side-panel">
+        <div id="menuScreen" class="screen screen--active">
+          <h2>Run Menu</h2>
+          <p class="muted">Prepare your wardens and fortify the pass.</p>
+          <button id="startRunButton" class="button button--ember" type="button">Start Run</button>
+          <div class="menu-panel__status">
+            <span id="runStatus">Awaiting orders...</span>
+          </div>
+        </div>
+
+        <div id="runMapScreen" class="screen">
+          <h2>Run Map</h2>
+          <p class="muted">Choose the next node on the Ashwood trail.</p>
+          <div class="screen__actions">
+            <button id="enterBattleButton" class="button button--ember" type="button">Enter Battle</button>
+            <button id="returnToMenuButton" class="button button--ghost" type="button">Return to Menu</button>
+          </div>
+        </div>
+
+        <div id="battleScreen" class="screen">
+          <h2>Battle Briefing</h2>
+          <p class="muted">Hold the pass. Waves and towers arrive next.</p>
+          <div class="screen__actions">
+            <button id="backToMapButton" class="button button--ghost" type="button">Return to Run Map</button>
+            <button id="endRunButton" class="button button--metal" type="button">End Run</button>
+          </div>
+        </div>
+
+        <div id="gameOverScreen" class="screen">
+          <h2>Bastion Fallen</h2>
+          <p class="muted">The wardens regroup in Ashwood. Try again.</p>
+          <button id="restartButton" class="button button--ember" type="button">Return to Menu</button>
         </div>
       </section>
 
-      <section class="battlefield">
-        <canvas id="gameCanvas" width="1280" height="720" aria-label="Battlefield"></canvas>
-        <div class="overlay panel">
-          <h3>Battlefield Preview</h3>
-          <p class="muted">Map and wave systems will arrive in the next milestone.</p>
-          <ul>
-            <li>Base: 100%</li>
-            <li>Gold: 120</li>
-            <li>Wave: 0 / 0</li>
-          </ul>
+      <section class="stage">
+        <div class="battlefield is-visible" id="battlefieldStage">
+          <canvas id="gameCanvas" width="1280" height="720" aria-label="Battlefield"></canvas>
+          <div class="overlay panel">
+            <h3>Battlefield Preview</h3>
+            <p class="muted">Map and wave systems will arrive in the next milestone.</p>
+            <ul>
+              <li>Base: 100%</li>
+              <li>Gold: 120</li>
+              <li>Wave: 0 / 0</li>
+            </ul>
+          </div>
+          <div id="pauseOverlay" class="pause-overlay">
+            <span>Paused</span>
+          </div>
+        </div>
+        <div id="runMapStage" class="run-map panel">
+          <h3>Run Map Placeholder</h3>
+          <p class="muted">Node graph incoming. Choose a path through Ashwood.</p>
         </div>
       </section>
     </main>
