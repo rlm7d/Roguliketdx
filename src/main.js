@@ -8,7 +8,6 @@ const GameState = {
   MENU: "menu",
   RUN_MAP: "runMap",
   BATTLE: "battle",
-  REWARD: "reward",
   GAME_OVER: "gameOver",
 };
 
@@ -145,7 +144,6 @@ const screens = {
   [GameState.MENU]: document.querySelector("#menuScreen"),
   [GameState.RUN_MAP]: document.querySelector("#runMapScreen"),
   [GameState.BATTLE]: document.querySelector("#battleScreen"),
-  [GameState.REWARD]: document.querySelector("#rewardScreen"),
   [GameState.GAME_OVER]: document.querySelector("#gameOverScreen"),
 };
 
@@ -166,7 +164,6 @@ const continueRunButton = document.querySelector("#continueRunButton");
 const rewardGrid = document.querySelector("#rewardGrid");
 
 const FIXED_STEP = 1000 / 60;
-const BUILD_PHASE_DURATION = 6;
 
 let settings = loadSettings();
 let lastFrameTime = 0;
@@ -174,7 +171,6 @@ let accumulator = 0;
 let viewportSize = { width: 0, height: 0 };
 let currentState = GameState.MENU;
 let isPaused = false;
-let simulationSpeed = 1;
 let demoPulse = 0;
 let showPathDebug = true;
 let battleState = createBattleState();
@@ -295,27 +291,17 @@ function updateHud() {
   }
 
   if (currentState === GameState.RUN_MAP) {
-    baseHpLabel.textContent = `${battleState.baseHp}%`;
-    goldLabel.textContent = `${battleState.gold}`;
-    waveLabel.textContent = `${battleState.waveIndex} / ${WAVE_DATA.length}`;
+    baseHpLabel.textContent = "100%";
+    goldLabel.textContent = "140";
+    waveLabel.textContent = "0 / 5";
     actLabel.textContent = "Run Map";
   }
 
   if (currentState === GameState.BATTLE) {
-    const currentWave = battleState.waveInProgress
-      ? battleState.waveIndex + 1
-      : battleState.waveIndex;
-    baseHpLabel.textContent = `${battleState.baseHp}%`;
-    goldLabel.textContent = `${battleState.gold}`;
-    waveLabel.textContent = `${currentWave} / ${WAVE_DATA.length}`;
+    baseHpLabel.textContent = "100%";
+    goldLabel.textContent = "140";
+    waveLabel.textContent = "1 / 5";
     actLabel.textContent = "Battle";
-  }
-
-  if (currentState === GameState.REWARD) {
-    baseHpLabel.textContent = `${battleState.baseHp}%`;
-    goldLabel.textContent = `${battleState.gold}`;
-    waveLabel.textContent = `${WAVE_DATA.length} / ${WAVE_DATA.length}`;
-    actLabel.textContent = "Rewards";
   }
 
   if (currentState === GameState.GAME_OVER) {
@@ -345,7 +331,6 @@ function setActiveScreen(nextState) {
 }
 
 function transitionTo(nextState) {
-  const previousState = currentState;
   currentState = nextState;
   if (nextState === GameState.MENU) {
     battleState = createBattleState();
@@ -365,8 +350,6 @@ function transitionTo(nextState) {
   }
   setActiveScreen(nextState);
   updateHud();
-  updateWaveUI();
-  updateTowerUI();
   runStatus.textContent =
     nextState === GameState.MENU ? "Awaiting orders..." : "Run underway.";
 }
@@ -378,271 +361,46 @@ function drawTextCentered(text, y, color = "rgba(245,239,230,0.7)") {
   ctx.fillText(text, viewportSize.width / 2, y);
 }
 
-function getMapLayout() {
-  const padding = 32;
-  const availableWidth = Math.max(viewportSize.width - padding * 2, 320);
-  const availableHeight = Math.max(viewportSize.height - padding * 2, 240);
-  const tileSize = Math.floor(
-    Math.min(availableWidth / MAP_CONFIG.cols, availableHeight / MAP_CONFIG.rows)
-  );
-  const width = tileSize * MAP_CONFIG.cols;
-  const height = tileSize * MAP_CONFIG.rows;
-  return {
-    tileSize,
-    width,
-    height,
-    offsetX: (viewportSize.width - width) / 2,
-    offsetY: (viewportSize.height - height) / 2,
-  };
-}
-
-function getTileCenter(layout, point) {
-  return {
-    x: layout.offsetX + (point.x + 0.5) * layout.tileSize,
-    y: layout.offsetY + (point.y + 0.5) * layout.tileSize,
-  };
-}
-
-function drawBattlefieldGrid(layout) {
-  for (let row = 0; row < MAP_CONFIG.rows; row += 1) {
-    for (let col = 0; col < MAP_CONFIG.cols; col += 1) {
-      const x = layout.offsetX + col * layout.tileSize;
-      const y = layout.offsetY + row * layout.tileSize;
-      const isPath = PATH_TILE_SET.has(`${col},${row}`);
-      ctx.fillStyle = isPath ? "rgba(94, 80, 64, 0.8)" : "rgba(28, 30, 29, 0.85)";
-      ctx.fillRect(x, y, layout.tileSize, layout.tileSize);
-      ctx.strokeStyle = "rgba(60, 56, 52, 0.6)";
-      ctx.lineWidth = 1;
-      ctx.strokeRect(x, y, layout.tileSize, layout.tileSize);
-    }
-  }
-}
-
-function drawPathLine(layout) {
-  ctx.strokeStyle = "rgba(225, 139, 58, 0.8)";
-  ctx.lineWidth = 3;
-  ctx.beginPath();
-  MAP_CONFIG.path.forEach((point, index) => {
-    const { x, y } = getTileCenter(layout, point);
-    if (index === 0) {
-      ctx.moveTo(x, y);
-    } else {
-      ctx.lineTo(x, y);
-    }
-  });
-  ctx.stroke();
-}
-
-function drawSpawnAndGate(layout) {
-  const spawn = MAP_CONFIG.path[0];
-  const gate = MAP_CONFIG.path[MAP_CONFIG.path.length - 1];
-  const spawnCenter = getTileCenter(layout, spawn);
-  const gateX = layout.offsetX + (gate.x + 0.1) * layout.tileSize;
-  const gateY = layout.offsetY + (gate.y + 0.1) * layout.tileSize;
-
-  ctx.fillStyle = "rgba(88, 160, 120, 0.9)";
-  ctx.beginPath();
-  ctx.arc(
-    spawnCenter.x,
-    spawnCenter.y,
-    layout.tileSize * 0.2,
-    0,
-    Math.PI * 2
-  );
-  ctx.fill();
-
-  ctx.fillStyle = "rgba(200, 90, 70, 0.9)";
-  ctx.fillRect(
-    gateX,
-    gateY,
-    layout.tileSize * 0.8,
-    layout.tileSize * 0.8
-  );
-}
-
-function spawnEnemy(waveConfig) {
-  battleState.enemies.push({
-    hp: waveConfig.hp,
-    maxHp: waveConfig.hp,
-    speed: waveConfig.speed,
-    bounty: waveConfig.bounty,
-    damage: waveConfig.damage,
-    segmentIndex: 0,
-    segmentProgress: 0,
-    statusEffects: [],
-  });
-}
-
-function updateEnemies(dtSeconds) {
-  const remainingEnemies = [];
-  for (const enemy of battleState.enemies) {
-    updateEnemyStatusEffects(enemy, dtSeconds);
-    const currentSpeed = enemy.speed * getSpeedModifier(enemy);
-    let moveRemaining = currentSpeed * dtSeconds;
-    while (moveRemaining > 0) {
-      const current = MAP_CONFIG.path[enemy.segmentIndex];
-      const next = MAP_CONFIG.path[enemy.segmentIndex + 1];
-      if (!next) {
-        battleState.baseHp = Math.max(battleState.baseHp - enemy.damage, 0);
-        break;
-      }
-      const dx = next.x - current.x;
-      const dy = next.y - current.y;
-      const segmentLength = Math.hypot(dx, dy);
-      const remainingSegment = segmentLength * (1 - enemy.segmentProgress);
-      if (moveRemaining < remainingSegment) {
-        enemy.segmentProgress += moveRemaining / segmentLength;
-        moveRemaining = 0;
-      } else {
-        moveRemaining -= remainingSegment;
-        enemy.segmentIndex += 1;
-        enemy.segmentProgress = 0;
-      }
-    }
-    if (enemy.segmentIndex < MAP_CONFIG.path.length - 1) {
-      remainingEnemies.push(enemy);
-    }
-  }
-  battleState.enemies = remainingEnemies;
-}
-
-function updateEnemyStatusEffects(enemy, dtSeconds) {
-  enemy.statusEffects = enemy.statusEffects
-    .map((effect) => ({ ...effect, remaining: effect.remaining - dtSeconds }))
-    .filter((effect) => effect.remaining > 0);
-}
-
-function getSpeedModifier(enemy) {
-  return enemy.statusEffects.reduce((modifier, effect) => {
-    if (effect.type === "slow") {
-      return Math.min(modifier, effect.factor);
-    }
-    return modifier;
-  }, 1);
-}
-
-function updateWaveSpawner(dtSeconds) {
-  if (!battleState.waveInProgress) {
-    return;
-  }
-  const waveConfig = WAVE_DATA[battleState.waveIndex];
-  if (!waveConfig) {
-    battleState.waveInProgress = false;
-    return;
-  }
-  battleState.spawnTimer -= dtSeconds;
-  if (battleState.spawnTimer <= 0 && battleState.spawnIndex < waveConfig.count) {
-    spawnEnemy(waveConfig);
-    battleState.spawnIndex += 1;
-    battleState.spawnTimer = waveConfig.spawnDelay;
-  }
-
-  if (battleState.spawnIndex >= waveConfig.count && battleState.enemies.length === 0) {
-    battleState.waveInProgress = false;
-    battleState.waveIndex += 1;
-    if (battleState.waveIndex < WAVE_DATA.length) {
-      battleState.buildPhaseRemaining = BUILD_PHASE_DURATION;
-    }
-  }
-}
-
-function updateWaveUI() {
-  if (currentState !== GameState.BATTLE) {
-    return;
-  }
-  updateWavePreview();
-  if (battleState.waveIndex >= WAVE_DATA.length) {
-    waveStatus.textContent = "All waves cleared. Return to the map.";
-    startWaveButton.disabled = true;
-    return;
-  }
-  if (battleState.waveInProgress) {
-    waveStatus.textContent = `Wave ${battleState.waveIndex + 1} in progress...`;
-    startWaveButton.disabled = true;
-    return;
-  }
-  if (battleState.buildPhaseRemaining > 0) {
-    waveStatus.textContent = `Build phase: ${Math.ceil(
-      battleState.buildPhaseRemaining
-    )}s`;
-    startWaveButton.disabled = true;
-  } else {
-    waveStatus.textContent = `Ready for Wave ${battleState.waveIndex + 1}.`;
-    startWaveButton.disabled = false;
-  }
-}
-
-function updateTowerUI() {
-  if (currentState !== GameState.BATTLE) {
-    arrowTowerButton.disabled = true;
-    frostTowerButton.disabled = true;
-    bombardTowerButton.disabled = true;
-    return;
-  }
-  arrowTowerButton.disabled = !canAffordTower("arrow");
-  frostTowerButton.disabled = !canAffordTower("frost");
-  bombardTowerButton.disabled = !canAffordTower("bombard");
-}
-
-function updateWavePreview() {
-  if (!wavePreviewList) {
-    return;
-  }
-  wavePreviewList.innerHTML = "";
-  const previewWaves = WAVE_DATA.slice(battleState.waveIndex, battleState.waveIndex + 2);
-  previewWaves.forEach((wave, index) => {
-    const row = document.createElement("div");
-    const label = battleState.waveIndex + index + 1;
-    row.textContent = `Wave ${label}: ${wave.count} raiders · ${wave.hp} HP · ${wave.speed.toFixed(
-      1
-    )} speed`;
-    wavePreviewList.appendChild(row);
-  });
-  if (!previewWaves.length) {
-    const row = document.createElement("div");
-    row.textContent = "No waves remain.";
-    wavePreviewList.appendChild(row);
-  }
-}
-
-function getTowerCost(type) {
-  return TOWER_DATA[type]?.cost ?? 0;
-}
-
-function canAffordTower(type) {
-  return battleState.gold >= getTowerCost(type);
-}
-
-function isBuildableTile(tile) {
-  if (!tile) {
-    return false;
-  }
-  if (tile.x < 0 || tile.y < 0 || tile.x >= MAP_CONFIG.cols || tile.y >= MAP_CONFIG.rows) {
-    return false;
-  }
-  if (PATH_TILE_SET.has(`${tile.x},${tile.y}`)) {
-    return false;
-  }
-  return !battleState.towers.some((tower) => tower.x === tile.x && tower.y === tile.y);
-}
-
-function placeTower(tile, type) {
-  if (!isBuildableTile(tile) || !canAffordTower(type)) {
-    return false;
-  }
-  battleState.gold -= getTowerCost(type);
-  battleState.towers.push({
-    type,
-    x: tile.x,
-    y: tile.y,
-    cooldown: 0,
-  });
-  updateHud();
-  updateTowerUI();
-  return true;
-}
-
 function renderMenuScene(time) {
+  ctx.clearRect(0, 0, viewportSize.width, viewportSize.height);
+  ctx.fillStyle = "rgba(255,255,255,0.03)";
+  ctx.fillRect(0, 0, viewportSize.width, viewportSize.height);
+  drawTextCentered("Ashwood Bastion", viewportSize.height / 2 - 20);
+  drawTextCentered("Prepare the wardens.", viewportSize.height / 2 + 10);
+}
+
+function renderRunMapScene(time) {
+  ctx.clearRect(0, 0, viewportSize.width, viewportSize.height);
+  ctx.fillStyle = "rgba(20,17,15,0.7)";
+  ctx.fillRect(0, 0, viewportSize.width, viewportSize.height);
+
+  ctx.strokeStyle = "rgba(240,192,112,0.6)";
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.moveTo(viewportSize.width * 0.2, viewportSize.height * 0.7);
+  ctx.lineTo(viewportSize.width * 0.4, viewportSize.height * 0.55);
+  ctx.lineTo(viewportSize.width * 0.6, viewportSize.height * 0.4);
+  ctx.lineTo(viewportSize.width * 0.8, viewportSize.height * 0.25);
+  ctx.stroke();
+
+  const nodes = [
+    { x: 0.2, y: 0.7 },
+    { x: 0.4, y: 0.55 },
+    { x: 0.6, y: 0.4 },
+    { x: 0.8, y: 0.25 },
+  ];
+
+  nodes.forEach((node, index) => {
+    ctx.fillStyle = index === 0 ? "#e18b3a" : "#c4b7aa";
+    ctx.beginPath();
+    ctx.arc(viewportSize.width * node.x, viewportSize.height * node.y, 10, 0, Math.PI * 2);
+    ctx.fill();
+  });
+
+  drawTextCentered("Run map preview: choose the next node.", viewportSize.height * 0.85);
+}
+
+function renderBattleScene(time) {
   ctx.clearRect(0, 0, viewportSize.width, viewportSize.height);
   ctx.fillStyle = "rgba(255,255,255,0.03)";
   ctx.fillRect(0, 0, viewportSize.width, viewportSize.height);
@@ -760,6 +518,9 @@ function renderBattleScene(time) {
   ctx.fill();
 }
 
+  drawTextCentered("Battlefield Preview", viewportSize.height / 2 + 8, "rgba(245,239,230,0.8)");
+}
+
 function renderGameOverScene() {
   ctx.clearRect(0, 0, viewportSize.width, viewportSize.height);
   ctx.fillStyle = "rgba(30,10,10,0.5)";
@@ -769,32 +530,6 @@ function renderGameOverScene() {
 
 function update(dt) {
   demoPulse += dt / 1000;
-  if (currentState === GameState.BATTLE) {
-    const dtSeconds = (dt / 1000) * simulationSpeed;
-    if (!battleState.waveInProgress && battleState.buildPhaseRemaining > 0) {
-      battleState.buildPhaseRemaining = Math.max(
-        battleState.buildPhaseRemaining - dtSeconds,
-        0
-      );
-    }
-    updateWaveSpawner(dtSeconds);
-    updateEnemies(dtSeconds);
-    updateTowers(dtSeconds);
-    updateProjectiles(dtSeconds);
-    updateWaveUI();
-    updateTowerUI();
-    updateHud();
-    if (
-      battleState.waveIndex >= WAVE_DATA.length &&
-      !battleState.waveInProgress &&
-      battleState.enemies.length === 0
-    ) {
-      transitionTo(GameState.REWARD);
-    }
-    if (battleState.baseHp <= 0) {
-      transitionTo(GameState.GAME_OVER);
-    }
-  }
 }
 
 function render(time) {
@@ -840,9 +575,6 @@ function loop(timestamp) {
 
 function togglePause() {
   isPaused = !isPaused;
-  if (isPaused) {
-    accumulator = 0;
-  }
   pauseOverlay.classList.toggle("is-visible", isPaused);
   pauseButton.textContent = isPaused ? "Resume" : "Pause";
 }
@@ -1124,83 +856,9 @@ function bindControls() {
 
   pauseButton.addEventListener("click", togglePause);
 
-  speedNormalButton.addEventListener("click", () => {
-    simulationSpeed = 1;
-    speedNormalButton.classList.add("is-active");
-    speedFastButton.classList.remove("is-active");
-  });
-
-  speedFastButton.addEventListener("click", () => {
-    simulationSpeed = 2;
-    speedFastButton.classList.add("is-active");
-    speedNormalButton.classList.remove("is-active");
-  });
-
-  startWaveButton.addEventListener("click", () => {
-    if (
-      battleState.waveInProgress ||
-      battleState.waveIndex >= WAVE_DATA.length ||
-      battleState.buildPhaseRemaining > 0
-    ) {
-      return;
-    }
-    battleState.waveInProgress = true;
-    battleState.spawnIndex = 0;
-    battleState.spawnTimer = 0;
-    updateWaveUI();
-  });
-
-  arrowTowerButton.addEventListener("click", () => {
-    if (currentState !== GameState.BATTLE) {
-      return;
-    }
-    placementMode = "arrow";
-  });
-
-  frostTowerButton.addEventListener("click", () => {
-    if (currentState !== GameState.BATTLE) {
-      return;
-    }
-    placementMode = "frost";
-  });
-
-  bombardTowerButton.addEventListener("click", () => {
-    if (currentState !== GameState.BATTLE) {
-      return;
-    }
-    placementMode = "bombard";
-  });
-
-  canvas.addEventListener("pointermove", (event) => {
-    if (!placementMode || currentState !== GameState.BATTLE) {
-      hoverTile = null;
-      return;
-    }
-    hoverTile = getTileFromPointer(event);
-  });
-
-  canvas.addEventListener("pointerleave", () => {
-    hoverTile = null;
-  });
-
-  canvas.addEventListener("pointerdown", (event) => {
-    if (!placementMode || currentState !== GameState.BATTLE) {
-      return;
-    }
-    const tile = getTileFromPointer(event);
-    const placed = placeTower(tile, placementMode);
-    if (placed) {
-      placementMode = null;
-      updateTowerUI();
-    }
-  });
-
   window.addEventListener("keydown", (event) => {
     if (event.key.toLowerCase() === "p" || event.key === "Escape") {
       togglePause();
-    }
-    if (event.key.toLowerCase() === "v") {
-      showPathDebug = !showPathDebug;
     }
   });
 }
@@ -1211,9 +869,6 @@ function init() {
   bindControls();
   resizeCanvas();
   updateHud();
-  updateWaveUI();
-  updateTowerUI();
-  updateWavePreview();
   setActiveScreen(currentState);
   window.addEventListener("resize", resizeCanvas);
   requestAnimationFrame(loop);
