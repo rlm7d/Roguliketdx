@@ -222,6 +222,21 @@ body {
   gap: 4px;
   text-align: left;
   align-items: flex-start;
+ }
+
+.reward-card__rarity {
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  padding: 2px 6px;
+  border-radius: 999px;
+  background: rgba(120, 96, 80, 0.6);
+  color: rgba(245, 239, 230, 0.9);
+}
+
+.reward-card.is-selected {
+  border-color: rgba(225, 139, 58, 0.9);
+  box-shadow: 0 0 0 2px rgba(225, 139, 58, 0.35);
 }
 
 .reward-card__rarity {
@@ -239,66 +254,6 @@ body {
   box-shadow: 0 0 0 2px rgba(225, 139, 58, 0.35);
 }
 
-.run-map__legend {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-  margin-bottom: 12px;
-}
-
-.run-map__chip {
-  padding: 4px 8px;
-  border-radius: 999px;
-  font-size: 0.75rem;
-  background: rgba(80, 68, 60, 0.6);
-  border: 1px solid rgba(110, 92, 80, 0.6);
-}
-
-.run-map__grid {
-  display: grid;
-  grid-auto-flow: column;
-  grid-auto-columns: minmax(120px, 1fr);
-  gap: 16px;
-  width: 100%;
-}
-
-.run-map__column {
-  display: grid;
-  gap: 12px;
-  justify-items: center;
-}
-
-.run-map__node {
-  width: 110px;
-  min-height: 64px;
-  padding: 8px;
-  border-radius: 14px;
-  text-align: center;
-  text-transform: uppercase;
-  font-size: 0.7rem;
-  letter-spacing: 0.08em;
-}
-
-.run-map__node strong {
-  display: block;
-  font-size: 0.85rem;
-  letter-spacing: 0.04em;
-  text-transform: none;
-}
-
-.run-map__node.is-current {
-  border-color: rgba(225, 139, 58, 0.9);
-  box-shadow: 0 0 0 2px rgba(225, 139, 58, 0.35);
-}
-
-.run-map__node.is-complete {
-  opacity: 0.6;
-}
-
-.run-map__node.is-locked {
-  opacity: 0.35;
-  cursor: not-allowed;
-}
 
 .stage {
   position: relative;
@@ -479,3 +434,4 @@ body {
     display: none;
   }
 }
+
