@@ -63,6 +63,62 @@ const TOWER_DATA = {
     splashRadius: 1.4,
   },
 };
+const REWARD_POOL = [
+  {
+    id: "sharpened-fletching",
+    name: "Sharpened Fletching",
+    description: "Arrow Watch damage +8%.",
+    rarity: "Common",
+    apply(modifiers) {
+      modifiers.towerDamage.arrow *= 1.08;
+    },
+  },
+  {
+    id: "cold-iron-rings",
+    name: "Cold Iron Rings",
+    description: "Frost Totem slow strength +10%.",
+    rarity: "Common",
+    apply(modifiers) {
+      modifiers.slowFactor *= 1.1;
+    },
+  },
+  {
+    id: "ember-reserves",
+    name: "Ember Reserves",
+    description: "Gain 20 gold before the next battle.",
+    rarity: "Common",
+    apply(modifiers, state) {
+      state.gold += 20;
+    },
+  },
+  {
+    id: "long-watch",
+    name: "Long Watch",
+    description: "Tower range +10%.",
+    rarity: "Rare",
+    apply(modifiers) {
+      modifiers.range *= 1.1;
+    },
+  },
+  {
+    id: "battlefield-drills",
+    name: "Battlefield Drills",
+    description: "Arrow Watch fires 10% faster.",
+    rarity: "Rare",
+    apply(modifiers) {
+      modifiers.attackSpeed.arrow *= 1.1;
+    },
+  },
+  {
+    id: "ruinbreaker-rounds",
+    name: "Ruinbreaker Rounds",
+    description: "Bombard damage +15%.",
+    rarity: "Epic",
+    apply(modifiers) {
+      modifiers.towerDamage.bombard *= 1.15;
+    },
+  },
+];
 const PATH_TILE_SET = new Set(
   MAP_CONFIG.path.map((point) => `${point.x},${point.y}`)
 );
@@ -107,6 +163,7 @@ const speedNormalButton = document.querySelector("#speedNormalButton");
 const speedFastButton = document.querySelector("#speedFastButton");
 const wavePreviewList = document.querySelector("#wavePreviewList");
 const continueRunButton = document.querySelector("#continueRunButton");
+const rewardGrid = document.querySelector("#rewardGrid");
 
 const FIXED_STEP = 1000 / 60;
 const BUILD_PHASE_DURATION = 6;
@@ -121,6 +178,7 @@ let simulationSpeed = 1;
 let demoPulse = 0;
 let showPathDebug = true;
 let battleState = createBattleState();
+let runState = createRunState();
 let placementMode = null;
 let hoverTile = null;
 
@@ -191,6 +249,31 @@ function createBattleState() {
     spawnTimer: 0,
     spawnIndex: 0,
     buildPhaseRemaining: 0,
+  };
+}
+
+function createRunState() {
+  return {
+    modifiers: createRunModifiers(),
+    rewardChoices: [],
+    rewardClaimed: false,
+  };
+}
+
+function createRunModifiers() {
+  return {
+    towerDamage: {
+      arrow: 1,
+      frost: 1,
+      bombard: 1,
+    },
+    attackSpeed: {
+      arrow: 1,
+      frost: 1,
+      bombard: 1,
+    },
+    range: 1,
+    slowFactor: 1,
   };
 }
 
@@ -266,6 +349,7 @@ function transitionTo(nextState) {
   currentState = nextState;
   if (nextState === GameState.MENU) {
     battleState = createBattleState();
+    runState = createRunState();
   }
   if (nextState === GameState.RUN_MAP) {
     battleState.waveInProgress = false;
@@ -275,6 +359,9 @@ function transitionTo(nextState) {
   }
   if (nextState === GameState.BATTLE && battleState.waveIndex >= WAVE_DATA.length) {
     resetBattleProgression();
+  }
+  if (nextState === GameState.REWARD) {
+    prepareRewards();
   }
   setActiveScreen(nextState);
   updateHud();
@@ -762,7 +849,7 @@ function togglePause() {
 
 function updateTowers(dtSeconds) {
   battleState.towers.forEach((tower) => {
-    const data = TOWER_DATA[tower.type];
+    const data = getTowerStats(tower.type);
     if (!data) {
       return;
     }
@@ -790,6 +877,7 @@ function updateTowers(dtSeconds) {
 
 function updateProjectiles(dtSeconds) {
   const remaining = [];
+  const layout = getMapLayout();
   battleState.projectiles.forEach((projectile) => {
     if (!battleState.enemies.includes(projectile.target)) {
       return;
@@ -798,12 +886,13 @@ function updateProjectiles(dtSeconds) {
     const dx = targetPos.x - projectile.x;
     const dy = targetPos.y - projectile.y;
     const distance = Math.hypot(dx, dy);
-    if (distance < projectile.speed * dtSeconds) {
+    const speedPixels = projectile.speed * layout.tileSize;
+    if (distance < speedPixels * dtSeconds) {
       applyProjectileHit(projectile);
       return;
     }
-    const vx = (dx / distance) * projectile.speed;
-    const vy = (dy / distance) * projectile.speed;
+    const vx = (dx / distance) * speedPixels;
+    const vy = (dy / distance) * speedPixels;
     projectile.x += vx * dtSeconds;
     projectile.y += vy * dtSeconds;
     remaining.push(projectile);
@@ -871,6 +960,31 @@ function findTargetForTower(tower, range) {
   return bestTarget;
 }
 
+function getTowerStats(towerType) {
+  const data = TOWER_DATA[towerType];
+  if (!data) {
+    return null;
+  }
+  const modifiers = runState.modifiers;
+  const attackSpeed = modifiers.attackSpeed[towerType] ?? 1;
+  const damage = data.damage * (modifiers.towerDamage[towerType] ?? 1);
+  const range = data.range * modifiers.range;
+  const fireRate = data.fireRate / attackSpeed;
+  const slow = data.slow
+    ? {
+        ...data.slow,
+        factor: data.slow.factor * modifiers.slowFactor,
+      }
+    : null;
+  return {
+    ...data,
+    damage,
+    range,
+    fireRate,
+    slow,
+  };
+}
+
 function getEnemyWorldPosition(enemy) {
   const layout = getMapLayout();
   const current = MAP_CONFIG.path[enemy.segmentIndex];
@@ -895,8 +1009,89 @@ function getTileFromPointer(event) {
   return { x: gridX, y: gridY };
 }
 
+function prepareRewards() {
+  runState.rewardChoices = rollRewards(3);
+  runState.rewardClaimed = false;
+  renderRewardChoices();
+  continueRunButton.disabled = true;
+}
+
+function rollRewards(count) {
+  const choices = [];
+  const used = new Set();
+  while (choices.length < count && used.size < REWARD_POOL.length) {
+    const reward = pickRewardByRarity();
+    if (!reward || used.has(reward.id)) {
+      continue;
+    }
+    used.add(reward.id);
+    choices.push(reward);
+  }
+  return choices;
+}
+
+function pickRewardByRarity() {
+  const rarityWeights = {
+    Common: 0.65,
+    Rare: 0.28,
+    Epic: 0.07,
+  };
+  const roll = Math.random();
+  let cumulative = 0;
+  let selectedRarity = "Common";
+  for (const [rarity, weight] of Object.entries(rarityWeights)) {
+    cumulative += weight;
+    if (roll <= cumulative) {
+      selectedRarity = rarity;
+      break;
+    }
+  }
+  const filtered = REWARD_POOL.filter((reward) => reward.rarity === selectedRarity);
+  if (!filtered.length) {
+    return REWARD_POOL[Math.floor(Math.random() * REWARD_POOL.length)];
+  }
+  return filtered[Math.floor(Math.random() * filtered.length)];
+}
+
+function renderRewardChoices() {
+  rewardGrid.innerHTML = "";
+  runState.rewardChoices.forEach((reward) => {
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = "button button--metal reward-card";
+    button.innerHTML = `
+      <span class="reward-card__rarity">${reward.rarity}</span>
+      <strong>${reward.name}</strong>
+      <span class="muted">${reward.description}</span>
+    `;
+    button.addEventListener("click", () => selectReward(reward, button));
+    rewardGrid.appendChild(button);
+  });
+}
+
+function selectReward(reward, button) {
+  if (runState.rewardClaimed) {
+    return;
+  }
+  applyReward(reward);
+  runState.rewardClaimed = true;
+  continueRunButton.disabled = false;
+  rewardGrid.querySelectorAll(".reward-card").forEach((card) => {
+    card.classList.toggle("is-selected", card === button);
+    card.disabled = true;
+  });
+}
+
+function applyReward(reward) {
+  reward.apply(runState.modifiers, battleState);
+  updateHud();
+  updateTowerUI();
+}
+
 function bindControls() {
   startRunButton.addEventListener("click", () => {
+    runState = createRunState();
+    battleState = createBattleState();
     transitionTo(GameState.RUN_MAP);
   });
 
@@ -921,6 +1116,9 @@ function bindControls() {
   });
 
   continueRunButton.addEventListener("click", () => {
+    if (!runState.rewardClaimed) {
+      return;
+    }
     transitionTo(GameState.RUN_MAP);
   });
 
