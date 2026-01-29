@@ -140,6 +140,98 @@ body {
   gap: 10px;
 }
 
+<<<<<<< HEAD
+<<<<<<< HEAD
+=======
+=======
+>>>>>>> codex/create-roguelike-tower-defense-game-v91bc3
+.battle-controls {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.battle-speed {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px;
+  border-radius: 12px;
+  background: rgba(20, 20, 20, 0.45);
+  border: 1px solid rgba(90, 82, 76, 0.6);
+}
+
+.battle-speed h3 {
+  margin: 0;
+  font-size: 0.95rem;
+}
+
+.battle-speed__controls {
+  display: flex;
+  gap: 8px;
+}
+
+.battle-speed__controls .button.is-active {
+  box-shadow: 0 0 0 1px rgba(225, 139, 58, 0.8);
+}
+
+.tower-shop {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(225, 139, 58, 0.25);
+}
+
+.tower-shop h3 {
+  margin: 0;
+  font-size: 1rem;
+}
+
+.tower-shop__grid {
+  display: grid;
+  gap: 8px;
+}
+
+.wave-preview {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.wave-preview h3 {
+  margin: 0;
+  font-size: 0.95rem;
+}
+
+.wave-preview__list {
+  display: grid;
+  gap: 6px;
+  font-size: 0.85rem;
+  color: rgba(245, 239, 230, 0.8);
+}
+
+.reward-grid {
+  display: grid;
+  gap: 12px;
+}
+
+.reward-card {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  text-align: left;
+}
+
+<<<<<<< HEAD
+>>>>>>> codex/create-roguelike-tower-defense-game
+=======
+>>>>>>> codex/create-roguelike-tower-defense-game-v91bc3
 .stage {
   position: relative;
   display: grid;
