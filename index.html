@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Ashwood Bastion</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <div id="app">
+    <header class="top-bar">
+      <div class="brand">
+        <span class="brand__sigil" aria-hidden="true"></span>
+        <div>
+          <h1>Ashwood Bastion</h1>
+          <p>Wardens of Emberwatch stand against the Bogclan</p>
+        </div>
+      </div>
+      <div class="top-actions">
+        <button id="settingsButton" class="button button--metal" type="button">Settings</button>
+      </div>
+    </header>
+
+    <main class="layout">
+      <section class="panel menu-panel">
+        <h2>Run Menu</h2>
+        <p class="muted">Prepare your wardens and fortify the pass.</p>
+        <button id="startRunButton" class="button button--ember" type="button">Start Run</button>
+        <div class="menu-panel__status">
+          <span id="runStatus">Awaiting orders...</span>
+        </div>
+      </section>
+
+      <section class="battlefield">
+        <canvas id="gameCanvas" width="1280" height="720" aria-label="Battlefield"></canvas>
+        <div class="overlay panel">
+          <h3>Battlefield Preview</h3>
+          <p class="muted">Map and wave systems will arrive in the next milestone.</p>
+          <ul>
+            <li>Base: 100%</li>
+            <li>Gold: 120</li>
+            <li>Wave: 0 / 0</li>
+          </ul>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <dialog id="settingsDialog" class="settings-dialog" aria-label="Settings">
+    <form method="dialog" class="panel settings-panel">
+      <header class="settings-panel__header">
+        <h2>Settings</h2>
+        <button id="closeSettings" class="button button--ghost" value="cancel" type="submit">Close</button>
+      </header>
+      <div class="settings-panel__body">
+        <label class="toggle">
+          <span>Sound Effects</span>
+          <input id="soundToggle" type="checkbox" />
+          <span class="toggle__slider" aria-hidden="true"></span>
+        </label>
+        <label class="toggle">
+          <span>Music</span>
+          <input id="musicToggle" type="checkbox" />
+          <span class="toggle__slider" aria-hidden="true"></span>
+        </label>
+        <p class="muted">Settings are saved locally on this device.</p>
+      </div>
+    </form>
+  </dialog>
+
+  <script type="module" src="src/main.js"></script>
+</body>
+</html>
