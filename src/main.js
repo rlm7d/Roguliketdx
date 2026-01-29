@@ -25,6 +25,11 @@ const MAP_CONFIG = {
     { x: 15, y: 4 },
   ],
 };
+const WAVE_DATA = [
+  { count: 6, hp: 20, speed: 1.2, bounty: 4, spawnDelay: 0.7, damage: 5 },
+  { count: 8, hp: 28, speed: 1.1, bounty: 5, spawnDelay: 0.6, damage: 6 },
+  { count: 10, hp: 36, speed: 1.0, bounty: 6, spawnDelay: 0.5, damage: 7 },
+];
 const PATH_TILE_SET = new Set(
   MAP_CONFIG.path.map((point) => `${point.x},${point.y}`)
 );
@@ -59,6 +64,8 @@ const returnToMenuButton = document.querySelector("#returnToMenuButton");
 const backToMapButton = document.querySelector("#backToMapButton");
 const endRunButton = document.querySelector("#endRunButton");
 const restartButton = document.querySelector("#restartButton");
+const startWaveButton = document.querySelector("#startWaveButton");
+const waveStatus = document.querySelector("#waveStatus");
 
 const FIXED_STEP = 1000 / 60;
 
@@ -70,6 +77,7 @@ let currentState = GameState.MENU;
 let isPaused = false;
 let demoPulse = 0;
 let showPathDebug = true;
+let battleState = createBattleState();
 
 function loadSettings() {
   try {
@@ -126,6 +134,18 @@ function resizeCanvas() {
   viewportSize = { width, height };
 }
 
+function createBattleState() {
+  return {
+    baseHp: 100,
+    gold: 120,
+    waveIndex: 0,
+    enemies: [],
+    waveInProgress: false,
+    spawnTimer: 0,
+    spawnIndex: 0,
+  };
+}
+
 function updateHud() {
   if (currentState === GameState.MENU) {
     baseHpLabel.textContent = "-";
@@ -135,16 +155,19 @@ function updateHud() {
   }
 
   if (currentState === GameState.RUN_MAP) {
-    baseHpLabel.textContent = "100%";
-    goldLabel.textContent = "140";
-    waveLabel.textContent = "0 / 5";
+    baseHpLabel.textContent = `${battleState.baseHp}%`;
+    goldLabel.textContent = `${battleState.gold}`;
+    waveLabel.textContent = `${battleState.waveIndex} / ${WAVE_DATA.length}`;
     actLabel.textContent = "Run Map";
   }
 
   if (currentState === GameState.BATTLE) {
-    baseHpLabel.textContent = "100%";
-    goldLabel.textContent = "140";
-    waveLabel.textContent = "1 / 5";
+    const currentWave = battleState.waveInProgress
+      ? battleState.waveIndex + 1
+      : battleState.waveIndex;
+    baseHpLabel.textContent = `${battleState.baseHp}%`;
+    goldLabel.textContent = `${battleState.gold}`;
+    waveLabel.textContent = `${currentWave} / ${WAVE_DATA.length}`;
     actLabel.textContent = "Battle";
   }
 
@@ -176,8 +199,15 @@ function setActiveScreen(nextState) {
 
 function transitionTo(nextState) {
   currentState = nextState;
+  if (nextState === GameState.MENU) {
+    battleState = createBattleState();
+  }
+  if (nextState === GameState.RUN_MAP) {
+    battleState.waveInProgress = false;
+  }
   setActiveScreen(nextState);
   updateHud();
+  updateWaveUI();
   runStatus.textContent =
     nextState === GameState.MENU ? "Awaiting orders..." : "Run underway.";
 }
@@ -207,6 +237,13 @@ function getMapLayout() {
   };
 }
 
+function getTileCenter(layout, point) {
+  return {
+    x: layout.offsetX + (point.x + 0.5) * layout.tileSize,
+    y: layout.offsetY + (point.y + 0.5) * layout.tileSize,
+  };
+}
+
 function drawBattlefieldGrid(layout) {
   for (let row = 0; row < MAP_CONFIG.rows; row += 1) {
     for (let col = 0; col < MAP_CONFIG.cols; col += 1) {
@@ -227,8 +264,7 @@ function drawPathLine(layout) {
   ctx.lineWidth = 3;
   ctx.beginPath();
   MAP_CONFIG.path.forEach((point, index) => {
-    const x = layout.offsetX + (point.x + 0.5) * layout.tileSize;
-    const y = layout.offsetY + (point.y + 0.5) * layout.tileSize;
+    const { x, y } = getTileCenter(layout, point);
     if (index === 0) {
       ctx.moveTo(x, y);
     } else {
@@ -241,14 +277,19 @@ function drawPathLine(layout) {
 function drawSpawnAndGate(layout) {
   const spawn = MAP_CONFIG.path[0];
   const gate = MAP_CONFIG.path[MAP_CONFIG.path.length - 1];
-  const spawnX = layout.offsetX + (spawn.x + 0.5) * layout.tileSize;
-  const spawnY = layout.offsetY + (spawn.y + 0.5) * layout.tileSize;
+  const spawnCenter = getTileCenter(layout, spawn);
   const gateX = layout.offsetX + (gate.x + 0.1) * layout.tileSize;
   const gateY = layout.offsetY + (gate.y + 0.1) * layout.tileSize;
 
   ctx.fillStyle = "rgba(88, 160, 120, 0.9)";
   ctx.beginPath();
-  ctx.arc(spawnX, spawnY, layout.tileSize * 0.2, 0, Math.PI * 2);
+  ctx.arc(
+    spawnCenter.x,
+    spawnCenter.y,
+    layout.tileSize * 0.2,
+    0,
+    Math.PI * 2
+  );
   ctx.fill();
 
   ctx.fillStyle = "rgba(200, 90, 70, 0.9)";
@@ -258,6 +299,89 @@ function drawSpawnAndGate(layout) {
     layout.tileSize * 0.8,
     layout.tileSize * 0.8
   );
+}
+
+function spawnEnemy(waveConfig) {
+  battleState.enemies.push({
+    hp: waveConfig.hp,
+    maxHp: waveConfig.hp,
+    speed: waveConfig.speed,
+    bounty: waveConfig.bounty,
+    damage: waveConfig.damage,
+    segmentIndex: 0,
+    segmentProgress: 0,
+  });
+}
+
+function updateEnemies(dtSeconds) {
+  const remainingEnemies = [];
+  for (const enemy of battleState.enemies) {
+    let moveRemaining = enemy.speed * dtSeconds;
+    while (moveRemaining > 0) {
+      const current = MAP_CONFIG.path[enemy.segmentIndex];
+      const next = MAP_CONFIG.path[enemy.segmentIndex + 1];
+      if (!next) {
+        battleState.baseHp = Math.max(battleState.baseHp - enemy.damage, 0);
+        break;
+      }
+      const dx = next.x - current.x;
+      const dy = next.y - current.y;
+      const segmentLength = Math.hypot(dx, dy);
+      const remainingSegment = segmentLength * (1 - enemy.segmentProgress);
+      if (moveRemaining < remainingSegment) {
+        enemy.segmentProgress += moveRemaining / segmentLength;
+        moveRemaining = 0;
+      } else {
+        moveRemaining -= remainingSegment;
+        enemy.segmentIndex += 1;
+        enemy.segmentProgress = 0;
+      }
+    }
+    if (enemy.segmentIndex < MAP_CONFIG.path.length - 1) {
+      remainingEnemies.push(enemy);
+    }
+  }
+  battleState.enemies = remainingEnemies;
+}
+
+function updateWaveSpawner(dtSeconds) {
+  if (!battleState.waveInProgress) {
+    return;
+  }
+  const waveConfig = WAVE_DATA[battleState.waveIndex];
+  if (!waveConfig) {
+    battleState.waveInProgress = false;
+    return;
+  }
+  battleState.spawnTimer -= dtSeconds;
+  if (battleState.spawnTimer <= 0 && battleState.spawnIndex < waveConfig.count) {
+    spawnEnemy(waveConfig);
+    battleState.spawnIndex += 1;
+    battleState.spawnTimer = waveConfig.spawnDelay;
+  }
+
+  if (battleState.spawnIndex >= waveConfig.count && battleState.enemies.length === 0) {
+    battleState.waveInProgress = false;
+    battleState.waveIndex += 1;
+  }
+}
+
+function updateWaveUI() {
+  if (currentState !== GameState.BATTLE) {
+    return;
+  }
+  if (battleState.waveIndex >= WAVE_DATA.length) {
+    waveStatus.textContent = "All waves cleared. Return to the map.";
+    startWaveButton.disabled = true;
+    return;
+  }
+  if (battleState.waveInProgress) {
+    waveStatus.textContent = `Wave ${battleState.waveIndex + 1} in progress...`;
+    startWaveButton.disabled = true;
+  } else {
+    waveStatus.textContent = `Ready for Wave ${battleState.waveIndex + 1}.`;
+    startWaveButton.disabled = false;
+  }
 }
 
 function renderMenuScene(time) {
@@ -311,6 +435,30 @@ function renderBattleScene(time) {
   }
   drawSpawnAndGate(layout);
 
+  battleState.enemies.forEach((enemy) => {
+    const current = MAP_CONFIG.path[enemy.segmentIndex];
+    const next = MAP_CONFIG.path[enemy.segmentIndex + 1] ?? current;
+    const position = {
+      x: current.x + (next.x - current.x) * enemy.segmentProgress,
+      y: current.y + (next.y - current.y) * enemy.segmentProgress,
+    };
+    const worldPos = getTileCenter(layout, position);
+    const radius = layout.tileSize * 0.25;
+    ctx.fillStyle = "rgba(120, 180, 110, 0.9)";
+    ctx.beginPath();
+    ctx.arc(worldPos.x, worldPos.y, radius, 0, Math.PI * 2);
+    ctx.fill();
+
+    const barWidth = layout.tileSize * 0.5;
+    const barHeight = 4;
+    const barX = worldPos.x - barWidth / 2;
+    const barY = worldPos.y - radius - 8;
+    ctx.fillStyle = "rgba(40, 30, 30, 0.8)";
+    ctx.fillRect(barX, barY, barWidth, barHeight);
+    ctx.fillStyle = "rgba(225, 139, 58, 0.9)";
+    ctx.fillRect(barX, barY, barWidth * (enemy.hp / enemy.maxHp), barHeight);
+  });
+
   ctx.fillStyle = "rgba(245,239,230,0.8)";
   ctx.font = "14px 'Segoe UI', sans-serif";
   ctx.textAlign = "left";
@@ -342,6 +490,16 @@ function renderGameOverScene() {
 
 function update(dt) {
   demoPulse += dt / 1000;
+  if (currentState === GameState.BATTLE) {
+    const dtSeconds = dt / 1000;
+    updateWaveSpawner(dtSeconds);
+    updateEnemies(dtSeconds);
+    updateWaveUI();
+    updateHud();
+    if (battleState.baseHp <= 0) {
+      transitionTo(GameState.GAME_OVER);
+    }
+  }
 }
 
 function render(time) {
@@ -411,6 +569,16 @@ function bindControls() {
 
   pauseButton.addEventListener("click", togglePause);
 
+  startWaveButton.addEventListener("click", () => {
+    if (battleState.waveInProgress || battleState.waveIndex >= WAVE_DATA.length) {
+      return;
+    }
+    battleState.waveInProgress = true;
+    battleState.spawnIndex = 0;
+    battleState.spawnTimer = 0;
+    updateWaveUI();
+  });
+
   window.addEventListener("keydown", (event) => {
     if (event.key.toLowerCase() === "p" || event.key === "Escape") {
       togglePause();
@@ -427,6 +595,7 @@ function init() {
   bindControls();
   resizeCanvas();
   updateHud();
+  updateWaveUI();
   setActiveScreen(currentState);
   window.addEventListener("resize", resizeCanvas);
   requestAnimationFrame(loop);

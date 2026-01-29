@@ -50,7 +50,11 @@
 
         <div id="battleScreen" class="screen">
           <h2>Battle Briefing</h2>
-          <p class="muted">Hold the pass. Waves and towers arrive next.</p>
+          <p class="muted">Hold the pass. Start the next wave when ready.</p>
+          <div class="battle-controls">
+            <button id="startWaveButton" class="button button--ember" type="button">Start Wave</button>
+            <p id="waveStatus" class="muted">Waves remaining.</p>
+          </div>
           <div class="screen__actions">
             <button id="backToMapButton" class="button button--ghost" type="button">Return to Run Map</button>
             <button id="endRunButton" class="button button--metal" type="button">End Run</button>
@@ -69,11 +73,11 @@
           <canvas id="gameCanvas" width="1280" height="720" aria-label="Battlefield"></canvas>
           <div class="overlay panel">
             <h3>Battlefield Preview</h3>
-            <p class="muted">Map and wave systems will arrive in the next milestone.</p>
+            <p class="muted">Enemy scouts are probing the pass.</p>
             <ul>
-              <li>Base: 100%</li>
-              <li>Gold: 120</li>
-              <li>Wave: 0 / 0</li>
+              <li>Base: Monitor the HUD.</li>
+              <li>Wave: Use Start Wave to begin.</li>
+              <li>Status: Path debug toggle (V).</li>
             </ul>
           </div>
           <div id="pauseOverlay" class="pause-overlay">

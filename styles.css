@@ -140,6 +140,15 @@ body {
   gap: 10px;
 }
 
+.battle-controls {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.03);
+}
+
 .stage {
   position: relative;
   display: grid;
