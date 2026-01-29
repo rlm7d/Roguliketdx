@@ -42,8 +42,15 @@
         <div id="runMapScreen" class="screen">
           <h2>Run Map</h2>
           <p class="muted">Choose the next node on the Ashwood trail.</p>
+          <div class="run-map__legend">
+            <span class="run-map__chip">Battle</span>
+            <span class="run-map__chip">Elite</span>
+            <span class="run-map__chip">Merchant</span>
+            <span class="run-map__chip">Shrine</span>
+            <span class="run-map__chip">Event</span>
+            <span class="run-map__chip">Boss</span>
+          </div>
           <div class="screen__actions">
-            <button id="enterBattleButton" class="button button--ember" type="button">Enter Battle</button>
             <button id="returnToMenuButton" class="button button--ghost" type="button">Return to Menu</button>
           </div>
         </div>
@@ -73,6 +80,12 @@
               <button id="bombardTowerButton" class="button button--metal" type="button">
                 Bombard (70g)
               </button>
+              <button id="thornTowerButton" class="button button--metal" type="button">
+                Thorn Grove (60g)
+              </button>
+              <button id="hexTowerButton" class="button button--metal" type="button">
+                Hex Spire (75g)
+              </button>
             </div>
           </div>
           <div class="battle-controls">
@@ -92,21 +105,8 @@
         <div id="rewardScreen" class="screen">
           <h2>Reward Choices</h2>
           <p class="muted">Choose one blessing before returning to the map.</p>
-          <div class="reward-grid">
-            <button class="button button--metal reward-card" type="button">
-              Sharpened Fletching
-              <span class="muted">Arrow Watch damage +8%</span>
-            </button>
-            <button class="button button--metal reward-card" type="button">
-              Cold Iron Rings
-              <span class="muted">Slow strength +10%</span>
-            </button>
-            <button class="button button--metal reward-card" type="button">
-              Ember Reserves
-              <span class="muted">Start next battle with +20 gold</span>
-            </button>
-          </div>
-          <button id="continueRunButton" class="button button--ember" type="button">
+          <div id="rewardGrid" class="reward-grid"></div>
+          <button id="continueRunButton" class="button button--ember" type="button" disabled>
             Return to Run Map
           </button>
         </div>
@@ -136,8 +136,9 @@
           </div>
         </div>
         <div id="runMapStage" class="run-map panel">
-          <h3>Run Map Placeholder</h3>
-          <p class="muted">Node graph incoming. Choose a path through Ashwood.</p>
+          <h3>Ashwood Trail</h3>
+          <p class="muted">Select a node to advance. Battles lead to rewards.</p>
+          <div id="runMapGrid" class="run-map__grid"></div>
         </div>
       </section>
     </main>
