@@ -10,7 +10,6 @@ const GameState = {
   BATTLE: "battle",
   GAME_OVER: "gameOver",
 };
-
 const canvas = document.querySelector("#gameCanvas");
 const ctx = canvas.getContext("2d");
 const settingsDialog = document.querySelector("#settingsDialog");
